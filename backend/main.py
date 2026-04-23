@@ -105,13 +105,12 @@ def hello_agent(request: HelloAgentRequest) -> HelloAgentResponse:
 
         # Opus 4.7 call with adaptive thinking — see CAPABILITIES.md
         # No temperature/top_p/top_k: they return 400 on 4.7
+        # effort: "high" for simple extraction — see CLAUDE.md § Model parameters
         response = client.messages.create(
-            model="claude-opus-4-7-20250415",
-            max_tokens=4096,
-            thinking={
-                "type": "enabled",
-                "budget_tokens": 2048,
-            },
+            model="claude-opus-4-7",
+            max_tokens=16000,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "high"},
             messages=[
                 {"role": "user", "content": request.message},
             ],
