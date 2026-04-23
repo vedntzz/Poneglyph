@@ -1,0 +1,66 @@
+SYNTHETIC DATA — Generated for Poneglyph hackathon demo. Not real.
+
+Project: Madhya Pradesh Farmer Producer Company (MP-FPC)
+Meeting: Q1 Progress Review
+Date: 2026-03-01
+Location: Project Office, Sagar (hybrid — Priya joined via video)
+Duration: 55 minutes
+
+Attendees:
+- Rajesh Sharma (Project Director, Synergy Technofin)
+- Priya Nair (State Program Manager, via video)
+- Ankit Verma (District Coordinator, Sagar)
+- Meena Patel (Field Operations Lead)
+
+---
+
+Rajesh Sharma: Let's do a quick stock-take before the World Bank mission next month. Ankit, AgriMarts first.
+
+Ankit Verma: So we've made good progress on the AgriMart rollout. As of today, we have 42 AgriMarts either operational or in advanced stages — 28 fully operational, 14 with signed MoUs and setup underway. The gram panchayat process is smoother now that we've standardized the MoU template.
+
+Rajesh Sharma: Good. 42 is solid for where we are. Let's focus on getting those 14 across the line before the review mission.
+
+Priya Nair: Wait — the original target was 50 by Q3, right? Are we still on track for that?
+
+Ankit Verma: Honestly, 42 to 45 is more realistic at this point. Some of the remaining panchayats are in remote blocks where the sarpanch hasn't been cooperative. We might need to substitute with alternate locations.
+
+Rajesh Sharma: Let's be practical. 42 operational AgriMarts with proper documentation is better than 50 with half of them on paper only. Focus on quality. We can explain the shortfall to the Bank if the evidence trail is solid.
+
+Priya Nair: I just want to make sure we're documenting why the number changed. The logframe says 50.
+
+Rajesh Sharma: Noted. Ankit, write a brief note explaining the revised number and which panchayats were dropped and why. We'll include it in the quarterly report.
+
+Ankit Verma: Will do. I'll have the note ready by next Friday.
+
+Rajesh Sharma: Meena, training materials?
+
+Meena Patel: Training materials are in final review. We're incorporating feedback from the pilot session in Gumla village last week. Should be finalized by the end of this week — well ahead of the May 15 deadline.
+
+Rajesh Sharma: Excellent. And women's PHM training numbers?
+
+Meena Patel: We've trained 187 women across 9 villages so far. On track to hit 200 by end of March as committed. The Gumla session alone had 47 participants — our highest turnout.
+
+Rajesh Sharma: That's great. Make sure every session has attendance sheets and photos uploaded to FarmTrac.
+
+Meena Patel: Already done for 7 of the 9 sessions. The remaining 2 are being uploaded this week.
+
+Priya Nair: What about the compliance audit Meena was supposed to do in January?
+
+Meena Patel: Completed. 6 out of 8 blocks are fully compliant with upload requirements. Banda and Khurai blocks had gaps — field staff there weren't uploading photos consistently. I've retrained them and set up a buddy system with the Sagar block coordinator.
+
+Rajesh Sharma: Good. And Dr. Kumar's land allotment update?
+
+Priya Nair: He sent the letter. Status is still "under consideration" at the collector's office. I've escalated to the Additional Chief Secretary. No resolution yet.
+
+Rajesh Sharma: That's going to be a red flag in the Bank review. Let's prepare a mitigation note. Priya, can you draft a one-pager on the land allotment status with our escalation steps?
+
+Priya Nair: I'll have it by Wednesday.
+
+Rajesh Sharma: Alright, summary of actions:
+1. Ankit: note explaining AgriMart count revision from target to actual, by next Friday
+2. Meena: finalize training materials by end of this week
+3. Meena: complete FarmTrac uploads for remaining 2 training sessions this week
+4. Priya: land allotment mitigation note by Wednesday
+5. Everyone: prepare evidence packages for World Bank review mission in April
+
+We're in good shape overall. The numbers tell a real story — let's make sure the documentation matches. Thanks all.

@@ -1,0 +1,58 @@
+SYNTHETIC DATA — Generated for Poneglyph hackathon demo. Not real.
+
+Project: Madhya Pradesh Farmer Producer Company (MP-FPC)
+Meeting: Project Kickoff Review
+Date: 2026-01-15
+Location: District Collectorate, Sagar
+Duration: 1 hour 20 minutes
+
+Attendees:
+- Rajesh Sharma (Project Director, Synergy Technofin)
+- Priya Nair (State Program Manager)
+- Ankit Verma (District Coordinator, Sagar)
+- Meena Patel (Field Operations Lead)
+- Dr. Suresh Kumar (Agriculture Dept, GoMP representative)
+
+---
+
+Rajesh Sharma: Good morning everyone. Let's go through where we are and lock in our targets for the next quarter. Priya, can you walk us through the current status?
+
+Priya Nair: Sure. So as of today, we've completed the baseline survey across all 8 blocks in Sagar district. We have 312 farmers registered in FarmTrac so far, out of our target of 1,000 by end of year. The main gap is in women's participation — we're at 15% against a target of 40%.
+
+Rajesh Sharma: That women's participation number needs to come up fast. What's the plan?
+
+Meena Patel: We've identified 12 villages where we can run dedicated women's PHM training workshops. If we do 3 per week starting next month, we can train at least 200 women by the end of March. But we need the training materials finalized first.
+
+Rajesh Sharma: Fine. Meena, I need those training materials ready by May 15. No later. We can't keep pushing this.
+
+Meena Patel: Understood. May 15 for training materials.
+
+Priya Nair: The other big item is the AgriMart network. We committed to 50 AgriMarts operational by Q3. Right now we have 8 signed up and 3 operational.
+
+Ankit Verma: The bottleneck is the MoU process with the gram panchayats. Each one takes 3-4 weeks. If we start the remaining 42 MoUs this month, we should be on track.
+
+Rajesh Sharma: 50 AgriMarts by Q3 — that's non-negotiable. It's in the logframe. Ankit, I want weekly progress reviews on this. Every Friday, send me the count.
+
+Ankit Verma: Done. Weekly updates every Friday starting this week.
+
+Dr. Suresh Kumar: From the government side, I want to flag that the land allotment for the Rehli cold storage is still pending at the district collector's office. I've raised it twice but no movement.
+
+Rajesh Sharma: Noted. Dr. Kumar, can you give us a written status on the land allotment by end of this week? We need it for the quarterly report.
+
+Dr. Suresh Kumar: I'll send it by Friday.
+
+Priya Nair: One more thing — the World Bank review mission is scheduled for April. They'll want to see the evidence trail for everything we're claiming. Are we confident our documentation is in order?
+
+Rajesh Sharma: That's exactly why we're setting up Poneglyph. Every field form, every attendance sheet, every photo — it all needs to be traceable. Let's make sure field staff are uploading to FarmTrac consistently. Meena, can you do a compliance check across all 8 blocks?
+
+Meena Patel: I'll do a compliance audit of all blocks by end of January and flag any gaps.
+
+Rajesh Sharma: Good. Let me summarize the key commitments:
+1. 50 AgriMarts operational by Q3 — Ankit owns this, weekly Friday updates
+2. Training materials ready by May 15 — Meena owns this
+3. Women's PHM training: 200 women trained by end of March — Meena
+4. Land allotment status in writing by Friday — Dr. Kumar
+5. Compliance audit across all blocks by end of January — Meena
+6. Weekly progress reviews every Friday
+
+Any questions? No? Good. Let's get to work.
