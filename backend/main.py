@@ -18,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agents.archivist import ArchivistAgent, AnswerWithCitations, Citation, Contradiction
+from agents.auditor import AuditorAgent, VerificationTag, VerifiedClaim, VerifiedSection
+from agents.drafter import DrafterAgent, Claim, DraftSection
 from agents.scribe import ScribeAgent, MeetingRecord, ExtractedCommitment, Disagreement
 from agents.scout import ScoutAgent
 from memory.project_memory import ProjectMemory
@@ -540,4 +542,254 @@ def archivist_contradictions(
             )
             for c in contradictions
         ],
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Drafter endpoint
+# ─────────────────────────────────────────────────────────────
+
+class DrafterRequest(BaseModel):
+    """Request body for the Drafter report-writing endpoint."""
+
+    project_id: str = Field(..., min_length=1, description="Project slug.")
+    section_name: str = Field(
+        ...,
+        min_length=1,
+        description="Section title, e.g. 'Progress on Women's Training'.",
+    )
+    donor_format: str = Field(
+        default="world_bank",
+        description="Donor format slug: 'world_bank', 'giz', or 'nabard'.",
+    )
+
+
+class ClaimResponse(BaseModel):
+    """A single factual claim with source attribution."""
+
+    text: str
+    citation_ids: list[str]
+    source_type: str
+
+
+class DraftSectionResponse(BaseModel):
+    """Response from the Drafter endpoint."""
+
+    project_id: str
+    section_name: str
+    donor_format: str
+    claims: list[ClaimResponse]
+    rendered_markdown: str
+    gaps: list[str]
+
+
+@app.post("/api/drafter/draft", response_model=DraftSectionResponse)
+def drafter_draft(request: DrafterRequest) -> DraftSectionResponse:
+    """Draft a donor-format report section using the Drafter agent.
+
+    Reads evidence, meetings, and commitments from the project binder,
+    then writes a report section with every claim traced to a source.
+    Uses Opus 4.7's adaptive thinking for cross-document synthesis.
+    See CAPABILITIES.md#adaptive-thinking.
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found.",
+        )
+
+    try:
+        drafter = DrafterAgent(memory=_memory)
+        draft = drafter.run(
+            project_id=request.project_id,
+            section_name=request.section_name,
+            donor_format=request.donor_format,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Drafter API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return DraftSectionResponse(
+        project_id=request.project_id,
+        section_name=draft.section_name,
+        donor_format=draft.donor_format,
+        claims=[
+            ClaimResponse(
+                text=c.text,
+                citation_ids=c.citation_ids,
+                source_type=c.source_type,
+            )
+            for c in draft.claims
+        ],
+        rendered_markdown=draft.rendered_markdown,
+        gaps=draft.gaps,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Auditor endpoint
+# ─────────────────────────────────────────────────────────────
+
+class AuditorRequest(BaseModel):
+    """Request body for the Auditor verification endpoint."""
+
+    project_id: str = Field(..., min_length=1, description="Project slug.")
+    draft_section: DraftSectionResponse = Field(
+        ...,
+        description="The DraftSectionResponse output from the Drafter endpoint.",
+    )
+
+
+class VerifiedClaimResponse(BaseModel):
+    """A claim after Auditor verification."""
+
+    text: str
+    citation_ids: list[str]
+    source_type: str
+    tag: str
+    reason: str
+    used_vision: bool
+
+
+class VerifiedSectionResponse(BaseModel):
+    """Response from the Auditor endpoint."""
+
+    project_id: str
+    section_name: str
+    donor_format: str
+    verified_claims: list[VerifiedClaimResponse]
+    rendered_markdown: str
+    summary: str
+
+
+@app.post("/api/auditor/verify", response_model=VerifiedSectionResponse)
+def auditor_verify(request: AuditorRequest) -> VerifiedSectionResponse:
+    """Verify a draft report section using the Auditor agent.
+
+    Re-reads every cited source independently and tags each claim as
+    VERIFIED (✓), CONTESTED (⚠), or UNSUPPORTED (✗). For image evidence
+    with MEDIUM/LOW confidence, makes independent Opus 4.7 vision calls.
+    See CAPABILITIES.md#self-verification.
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found.",
+        )
+
+    # Reconstruct DraftSection from the request
+    draft = DraftSection(
+        section_name=request.draft_section.section_name,
+        donor_format=request.draft_section.donor_format,
+        claims=[
+            Claim(
+                text=c.text,
+                citation_ids=c.citation_ids,
+                source_type=c.source_type,
+            )
+            for c in request.draft_section.claims
+        ],
+        rendered_markdown=request.draft_section.rendered_markdown,
+        gaps=request.draft_section.gaps,
+    )
+
+    try:
+        auditor = AuditorAgent(memory=_memory)
+        verified = auditor.verify(
+            project_id=request.project_id,
+            draft=draft,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Auditor API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return VerifiedSectionResponse(
+        project_id=request.project_id,
+        section_name=verified.section_name,
+        donor_format=verified.donor_format,
+        verified_claims=[
+            VerifiedClaimResponse(
+                text=vc.text,
+                citation_ids=vc.citation_ids,
+                source_type=vc.source_type,
+                tag=vc.tag.value,
+                reason=vc.reason,
+                used_vision=vc.used_vision,
+            )
+            for vc in verified.verified_claims
+        ],
+        rendered_markdown=verified.rendered_markdown,
+        summary=verified.summary,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Combined report endpoint — drafts then audits in one call
+# ─────────────────────────────────────────────────────────────
+
+@app.post("/api/report/generate", response_model=VerifiedSectionResponse)
+def report_generate(request: DrafterRequest) -> VerifiedSectionResponse:
+    """Draft and verify a report section in one call.
+
+    Runs the full Drafter → Auditor pipeline: writes the section in donor
+    format, then adversarially verifies every claim. This is the primary
+    endpoint for the demo flow (CLAUDE.md § demo flow steps 8-9).
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found.",
+        )
+
+    try:
+        # Phase 1: Drafter writes the section
+        drafter = DrafterAgent(memory=_memory)
+        draft = drafter.run(
+            project_id=request.project_id,
+            section_name=request.section_name,
+            donor_format=request.donor_format,
+        )
+
+        # Phase 2: Auditor verifies every claim
+        auditor = AuditorAgent(memory=_memory)
+        verified = auditor.verify(
+            project_id=request.project_id,
+            draft=draft,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Report generation API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return VerifiedSectionResponse(
+        project_id=request.project_id,
+        section_name=verified.section_name,
+        donor_format=verified.donor_format,
+        verified_claims=[
+            VerifiedClaimResponse(
+                text=vc.text,
+                citation_ids=vc.citation_ids,
+                source_type=vc.source_type,
+                tag=vc.tag.value,
+                reason=vc.reason,
+                used_vision=vc.used_vision,
+            )
+            for vc in verified.verified_claims
+        ],
+        rendered_markdown=verified.rendered_markdown,
+        summary=verified.summary,
     )
