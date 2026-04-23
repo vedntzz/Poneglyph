@@ -199,3 +199,36 @@ The seeded AgriMart 50→42 walk-back IS in the test data (meeting_001 line 30-3
 **Range of total contradictions: 2–4.** Training deadline change (May 15→March 6) is the most reliably detected contradiction (3/3 runs). Village scope reduction (12→9 villages) detected in 2/3 runs. Compliance audit appears in all 3 but with varying framing. AgriMart walk-back is the least reliable — likely because the meeting data makes it borderline (Rajesh acknowledges 42 is the realistic number, Priya pushes back about the logframe target, and they agree to document the deviation).
 
 **Implication for evals:** Contradiction detection is inherently non-deterministic. For EVALS.md, report the range, not a single number. The test with the strict assertion will fail ~67% of the time on the AgriMart check. This is the honest result — the assertion is correct, the model's classification of borderline cases varies.
+
+---
+
+## Test data iteration (follow-up, 2026-04-23)
+
+**Problem:** AgriMart walk-back was 1/3 reliable because meeting_002 included acknowledged-revision dialogue ("Let's be practical. 42 operational AgriMarts with proper documentation is better than 50 with half of them on paper only."). Opus 4.7 correctly classified this as an acknowledged revision, not silent drift. The model was right — the test data was wrong.
+
+### Attempt 1: Remove all acknowledgment dialogue
+
+**What changed in meeting_002.txt:**
+- Removed Priya's pushback ("Wait — the original target was 50 by Q3, right?")
+- Removed Ankit's admission ("Honestly, 42 to 45 is more realistic")
+- Removed Rajesh's rationalization ("Let's be practical. 42 operational AgriMarts... is better than 50 with half on paper")
+- Removed Priya's documentation concern ("The logframe says 50")
+- Removed the action item to write a note explaining the revised number
+- Replaced with matter-of-fact operational dialogue: "We have 42 in the pipeline — 28 fully operational, 14 with signed MoUs and setup underway" + action item for a status tracker
+- Within meeting_002 alone, there is now zero signal that the number ever changed
+
+**Results (5 runs):**
+
+| Run | Total contradictions | AgriMart detected? | Severity | Other contradictions |
+|-----|---------------------|-------------------|----------|---------------------|
+| 1 | 4 | **Yes** | high | village scope 12→9 (med), training deadline (med), compliance audit (low) |
+| 2 | 3 | **Yes** | high | training deadline (low), village scope 12→9 (med) |
+| 3 | 3 | **Yes** | high | village scope 12→9 (med), training deadline (low) |
+| 4 | 3 | **Yes** | high | training deadline (med), village scope 12→9 (med) |
+| 5 | 5 | **Yes** | high | training deadline (med), village scope 12→9 (med), compliance audit (low), Gumla geography (med) |
+
+**Final reliability: 5/5 (100%).** No second attempt needed.
+
+**Range of total contradictions: 3–5.** AgriMart is now the most reliably detected contradiction (5/5, always high severity). Training deadline and village scope remain reliable (5/5 each). Compliance audit is sporadic (2/5). Run 5 surfaced a novel finding: Gumla village is in Jharkhand, not Madhya Pradesh — the model flagged a geographic inconsistency in the synthetic data.
+
+**Lesson for METHODOLOGY.md:** Probabilistic agent outputs need multi-run variance testing, not single-run "it passed" assertions. When a test is flaky, check whether the test data is ambiguous before blaming the model — Opus 4.7 was making the correct judgment on borderline input. Fix the data, not the model.
