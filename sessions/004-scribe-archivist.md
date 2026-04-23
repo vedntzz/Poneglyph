@@ -157,3 +157,17 @@ Within budget. Archivist API calls are the most expensive part (agentic loop for
 - Add API endpoints for both
 - Test both agents end-to-end: Drafter writes a report section, Auditor verifies it
 - Wire the full pipeline: Scout → Scribe → Archivist → Drafter → Auditor
+
+---
+
+## Post-session bug fix (2026-04-23)
+
+**Bug:** `ProjectMemory.__init__` accepted `data_dir` typed as `Optional[Path]` but did not coerce strings to `Path`. When a caller passed a raw string (e.g. from config, env var, or manual construction), `self.data_dir / project_id` raised `TypeError: unsupported operand type(s) for /: 'str' and 'str'`.
+
+**Why the test masked it:** `test_memory.py` constructs `data_dir` via `Path(tempfile.mkdtemp(...))` — the `Path()` wrapper was applied at the call site, so `ProjectMemory` always received a `Path` object. The Scribe and Archivist tests also use `Path(tmpdir)` from `tempfile.TemporaryDirectory()`. No test ever passed a raw string.
+
+**Fix:** Changed `__init__` signature to `data_dir: str | Path | None = None` and added `Path(data_dir) if data_dir is not None else DEFAULT_DATA_DIR`. Added regression test `test_string_path_regression()` to `test_memory.py` that explicitly constructs `ProjectMemory` with a string path and verifies `_project_dir()` returns a `Path`.
+
+**Verification:** `test_memory.py` passes (including new regression test). `test_archivist.py` passes (both query and contradiction tests). The `TypeError` is gone.
+
+**Lesson:** When a constructor accepts a type-restricted parameter, coerce it at the boundary. Don't rely on callers getting the type right. This is exactly what CLAUDE.md § "Fail loudly, fail early" means — but the better version is "accept generously, store strictly."

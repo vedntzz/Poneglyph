@@ -288,5 +288,39 @@ def run_test() -> None:
         print(f"\n   Cleaned up: {tmp_dir}")
 
 
+def test_string_path_regression() -> None:
+    """Regression test: ProjectMemory must accept a plain string as data_dir.
+
+    Bug found in Session 004 manual testing: callers passing a string
+    (e.g. from an env var or config file) caused a TypeError on the `/`
+    operator in _project_dir(). The test suite masked this because
+    tempfile.mkdtemp() returns a string that was immediately wrapped
+    in Path() above.
+    """
+    tmp_str = tempfile.mkdtemp(prefix="poneglyph_str_test_")
+
+    try:
+        # Pass a raw string, not a Path — this is the bug scenario
+        memory = ProjectMemory(data_dir=tmp_str)
+
+        # _project_dir uses `/` which only works on Path objects
+        project_dir = memory._project_dir("test-project")
+        assert isinstance(project_dir, Path), (
+            f"_project_dir should return a Path, got {type(project_dir)}"
+        )
+
+        # Full round-trip: create a project via the string-initialized memory
+        memory.create_project("str-test", "String Path Test", "Test Donor")
+        assert (Path(tmp_str) / "str-test" / "project.yaml").exists(), (
+            "Project should be created even when data_dir was passed as a string"
+        )
+
+        print("\n   STRING PATH REGRESSION TEST PASSED")
+
+    finally:
+        shutil.rmtree(tmp_str, ignore_errors=True)
+
+
 if __name__ == "__main__":
     run_test()
+    test_string_path_regression()
