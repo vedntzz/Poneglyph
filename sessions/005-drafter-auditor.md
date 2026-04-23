@@ -148,6 +148,20 @@ Drafter output is structurally stable. Claim count varies (13–17) due to granu
 
 ---
 
+## Post-session adjustment: AUDITOR_ALWAYS_VISION_CHECK flag
+
+**Problem:** The cost optimization (HIGH-confidence Scout claims skip vision re-check) meant the test pipeline showed `Vision calls: 0`. The Auditor's self-verification capability — the third hero 4.7 feature — wasn't being demonstrated in any test run.
+
+**Fix:** Added `AUDITOR_ALWAYS_VISION_CHECK: bool = True` (default True for hackathon). When True, every claim citing image-backed evidence triggers an independent vision call against the original image, regardless of Scout's confidence. When False (production mode), the existing HIGH-skip logic applies.
+
+**Test result:** Added `test_vision_verification` — seeds HIGH-confidence image evidence pointing to `form_english.png`, constructs a claim citing it. With the flag True:
+- `Vision check: True`, `1 claims checked via independent vision call`
+- Auditor tagged the claim as ⚠ CONTESTED — it independently read the source image and found the Scout raw_text didn't match the actual document content. This is a better demonstration of the capability than a simple ✓.
+
+**Why this is the right tradeoff for the hackathon:** The judging criterion is "did you surface capabilities that surprised even us?" A demo that always shows the independent vision re-verification path is more compelling than one that silently skips it. Production deployments can set the flag to False for ~80% cost savings.
+
+---
+
 ## Next Session Definition of Ready (006 — Orchestrator)
 
 **Scope:** Build Orchestrator as a Python controller (not an LLM call) that coordinates the agent pipeline. Expose a single `POST /api/orchestrate` endpoint that accepts uploads + a task type and runs the appropriate agent chain. Wire up the demo flow: upload → Scout/Scribe → Archivist → Drafter → Auditor → VerifiedSection.

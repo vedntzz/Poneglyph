@@ -20,6 +20,7 @@ import tempfile
 from pathlib import Path
 
 from memory.project_memory import ProjectMemory
+from memory.models import Confidence, Evidence, EvidenceSource
 from agents.scribe import ScribeAgent
 from agents.drafter import DrafterAgent, DraftSection, Claim
 from agents.auditor import AuditorAgent, VerificationTag, VerifiedClaim
@@ -44,6 +45,13 @@ SAMPLE_LOGFRAME = """
 MEETINGS_DIR = (
     Path(__file__).resolve().parent.parent.parent
     / "data" / "synthetic" / "meetings"
+)
+
+# Synthetic form image for testing Auditor's independent vision verification.
+# This is the English attendance form generated in Session 003.
+SYNTHETIC_FORM_IMAGE = (
+    Path(__file__).resolve().parent.parent.parent
+    / "data" / "synthetic" / "form_english.png"
 )
 
 
@@ -274,6 +282,110 @@ def test_unsupported_claim() -> None:
               f"Fabricated claim = {fabricated.tag.value}")
 
 
+def test_vision_verification() -> None:
+    """Test: Auditor makes an independent vision call for image-backed evidence.
+
+    Seeds a HIGH-confidence evidence item with source_file pointing to a
+    real synthetic form image. With AUDITOR_ALWAYS_VISION_CHECK=True
+    (hackathon default), the Auditor should make an independent Opus 4.7
+    vision call even for HIGH confidence — demonstrating the capability.
+
+    This test exercises Phase 1 of the Auditor's two-phase verification.
+    """
+    print("\n" + "=" * 60)
+    print("Test: Independent Vision Verification")
+    print("=" * 60)
+
+    if not SYNTHETIC_FORM_IMAGE.exists():
+        print(f"  SKIPPED: synthetic form image not found at {SYNTHETIC_FORM_IMAGE}")
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        memory = ProjectMemory(data_dir=Path(tmpdir))
+        project_id = "mp-fpc-test"
+        memory.create_project(project_id, "MP FPC Test", "World Bank")
+        memory.load_logframe(project_id, SAMPLE_LOGFRAME)
+
+        # Seed image-backed evidence (as if Scout extracted it)
+        evidence = Evidence(
+            evidence_id="ev-form-english-001",
+            source=EvidenceSource.FIELD_FORM,
+            date_collected="2026-02-20",
+            district="Sagar",
+            village="Gumla",
+            logframe_indicator="Output 3.2",
+            summary="Attendance sheet showing 47 women attended PHM training session in Gumla village.",
+            raw_text="PHM Training Attendance — Gumla Village, 20 Feb 2026. Total: 47 participants.",
+            confidence=Confidence.HIGH,
+            source_file=str(SYNTHETIC_FORM_IMAGE),
+            bounding_boxes=[{"x1": 50, "y1": 100, "x2": 400, "y2": 300}],
+        )
+        memory.add_evidence(project_id, evidence)
+        print(f"  Seeded evidence: {evidence.evidence_id} (confidence: HIGH)")
+        print(f"  Source file: {SYNTHETIC_FORM_IMAGE.name}")
+
+        # Construct a draft with a claim citing the image evidence
+        draft = DraftSection(
+            section_name="Test Vision Verification",
+            donor_format="world_bank",
+            claims=[
+                Claim(
+                    text="47 women attended the PHM training session in Gumla village on February 20, 2026.",
+                    citation_ids=["ev-form-english-001"],
+                    source_type="evidence",
+                ),
+            ],
+            rendered_markdown="(test)",
+            gaps=[],
+        )
+
+        print(f"  Draft: 1 claim citing image evidence")
+
+        # Run Auditor
+        auditor = AuditorAgent(memory=memory)
+        print("\n  Running adversarial verification with vision check...")
+        verified = auditor.verify(project_id=project_id, draft=draft)
+
+        # Print results
+        for i, vc in enumerate(verified.verified_claims):
+            tag_symbol = {"verified": "✓", "contested": "⚠", "unsupported": "✗"}
+            symbol = tag_symbol.get(vc.tag.value, "?")
+            print(f"  [{i}] {symbol} {vc.text[:100]}")
+            if vc.reason:
+                print(f"      Reason: {vc.reason[:120]}")
+            print(f"      Vision check: {vc.used_vision}")
+
+        print(f"\n  Summary: {verified.summary}")
+
+        # ─── Assertions ───────────────────────────────────────
+
+        assert len(verified.verified_claims) == 1, (
+            f"Expected 1 verified claim, got {len(verified.verified_claims)}"
+        )
+
+        vc = verified.verified_claims[0]
+
+        # Must have used vision — this is the whole point of the test
+        assert vc.used_vision, (
+            "Expected used_vision=True for image-backed evidence. "
+            "Is AUDITOR_ALWAYS_VISION_CHECK set to True?"
+        )
+
+        # Any tag is acceptable — the synthetic form image may not match
+        # the seeded claim text (and that's fine: the Auditor catching the
+        # mismatch is itself a demonstration of the capability). The point
+        # of this test is that used_vision=True, not the specific verdict.
+        assert vc.tag in (
+            VerificationTag.VERIFIED,
+            VerificationTag.CONTESTED,
+            VerificationTag.UNSUPPORTED,
+        ), f"Claim has invalid tag: {vc.tag}"
+
+        print(f"\n  PASSED: Vision verification exercised, tag = {vc.tag.value}")
+        if vc.tag == VerificationTag.UNSUPPORTED:
+            print("  (Auditor correctly caught mismatch between claim and source image)")
+
+
 def main() -> None:
     """Run all Auditor tests."""
     print("=" * 60)
@@ -282,6 +394,7 @@ def main() -> None:
 
     test_full_pipeline()
     test_unsupported_claim()
+    test_vision_verification()
 
     print("\n" + "=" * 60)
     print("ALL AUDITOR TESTS PASSED")
