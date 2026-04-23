@@ -47,6 +47,14 @@ class VerificationStatus(str, Enum):
     PENDING = "pending"             # not yet reviewed by Auditor
 
 
+class Confidence(str, Enum):
+    """Scout's confidence in an evidence extraction. See prompts/scout.md § Rule 6."""
+
+    HIGH = "high"       # text clearly legible, meaning unambiguous
+    MEDIUM = "medium"   # partially legible or requires inference
+    LOW = "low"         # barely legible or speculative
+
+
 class CommitmentStatus(str, Enum):
     """Lifecycle of a commitment made in a meeting."""
 
@@ -93,7 +101,19 @@ class Evidence(BaseModel):
         default=VerificationStatus.PENDING,
         description="Auditor's verification tag.",
     )
-    summary: str = Field(description="One-line summary of what this evidence shows.")
+    summary: str = Field(description="One-line interpreted claim of what this evidence shows.")
+    raw_text: Optional[str] = Field(
+        default=None,
+        description=(
+            "Verbatim text extracted from the source image, in the original "
+            "language. Separated from summary so Auditor can verify that the "
+            "interpretation follows from the literal text."
+        ),
+    )
+    confidence: Optional[Confidence] = Field(
+        default=None,
+        description="Scout's confidence in this extraction. See prompts/scout.md § Rule 6.",
+    )
     source_file: Optional[str] = Field(
         default=None,
         description="Path to the original uploaded file (image, PDF, etc.).",
@@ -102,7 +122,8 @@ class Evidence(BaseModel):
         default=None,
         description=(
             "Pixel-coordinate bounding boxes from Opus 4.7's vision. "
-            "Each dict has keys: x, y, width, height. "
+            "Each dict has keys: x1, y1 (top-left corner) and x2, y2 "
+            "(bottom-right corner) in the image's native pixel space. "
             "See CAPABILITIES.md#pixel-vision."
         ),
     )

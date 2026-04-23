@@ -27,6 +27,7 @@ import yaml
 from memory.models import (
     Commitment,
     CommitmentStatus,
+    Confidence,
     Evidence,
     EvidenceSource,
     Meeting,
@@ -269,6 +270,8 @@ class ProjectMemory:
             frontmatter["source"] = frontmatter["source"].value if isinstance(frontmatter["source"], EvidenceSource) else frontmatter["source"]
         if "verification_status" in frontmatter:
             frontmatter["verification_status"] = frontmatter["verification_status"].value if isinstance(frontmatter["verification_status"], VerificationStatus) else frontmatter["verification_status"]
+        if "confidence" in frontmatter:
+            frontmatter["confidence"] = frontmatter["confidence"].value if isinstance(frontmatter["confidence"], Confidence) else frontmatter["confidence"]
 
         file_path = evidence_dir / f"{evidence.evidence_id}.md"
         _write_markdown(file_path, frontmatter, evidence.summary)

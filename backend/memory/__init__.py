@@ -10,6 +10,7 @@ See ARCHITECTURE.md#archivist-design and CAPABILITIES.md#file-memory.
 
 from memory.models import (
     Commitment,
+    Confidence,
     Evidence,
     Meeting,
     StakeholderPosition,
@@ -19,6 +20,7 @@ from memory.project_memory import ProjectMemory
 
 __all__ = [
     "Commitment",
+    "Confidence",
     "Evidence",
     "Meeting",
     "ProjectMemory",

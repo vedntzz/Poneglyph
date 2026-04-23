@@ -97,8 +97,8 @@ def run_test() -> None:
                 summary="Beneficiary registration form: 47 farmers enrolled in Rahatgarh village, Sagar district. Form signed by Village Development Officer.",
                 source_file="data/real_redacted/sagar_registration_nov15.pdf",
                 bounding_boxes=[
-                    {"x": 120, "y": 340, "width": 680, "height": 45},
-                    {"x": 120, "y": 890, "width": 680, "height": 45},
+                    {"x1": 120, "y1": 340, "x2": 800, "y2": 385},
+                    {"x1": 120, "y1": 890, "x2": 800, "y2": 935},
                 ],
             ),
             Evidence(
