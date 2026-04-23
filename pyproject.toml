@@ -1,0 +1,66 @@
+# backend/pyproject.toml — ruff + mypy configuration
+#
+# Paired with .claude/hooks/pre-commit.
+# These settings match the Code Quality Standards in CLAUDE.md.
+
+[project]
+name = "poneglyph-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+# ─────────────────────────────────────────────────────────────
+# Ruff — linting + formatting
+# ─────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+
+[tool.ruff.lint]
+# Selected rulesets:
+#   E, W  — pycodestyle errors/warnings
+#   F     — pyflakes (undefined names, unused imports)
+#   I     — isort (import ordering)
+#   B     — flake8-bugbear (common bugs)
+#   UP    — pyupgrade (modern syntax)
+#   SIM   — flake8-simplify
+#   ANN   — flake8-annotations (enforce type hints — CLAUDE.md Rule: "Type hints on everything")
+#   TCH   — flake8-type-checking
+#   RUF   — ruff-specific rules
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "ANN", "TCH", "RUF"]
+
+# Explicit ignores with reasons:
+ignore = [
+  "ANN101",  # missing type for `self` — redundant
+  "ANN102",  # missing type for `cls` — redundant
+  "E501",   # line too long — ruff format handles this, don't double-enforce
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can be less strict on annotations — they're self-documenting
+"**/test_*.py" = ["ANN"]
+"**/*_test.py" = ["ANN"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ─────────────────────────────────────────────────────────────
+# Mypy — strict type checking
+# ─────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+strict = true
+# strict = true enables all of:
+#   --warn-unused-configs --disallow-any-generics --disallow-subclassing-any
+#   --disallow-untyped-calls --disallow-untyped-defs --disallow-incomplete-defs
+#   --check-untyped-defs --disallow-untyped-decorators --no-implicit-optional
+#   --warn-redundant-casts --warn-unused-ignores --warn-return-any
+#   --no-implicit-reexport --strict-equality
+# That's the level we want — matches CLAUDE.md's "Type hints on everything" rule.
+
+# Third-party libraries without type stubs — allow untyped imports from these
+# (add libraries here only if they genuinely don't have stubs; prefer finding stubs first)
+[[tool.mypy.overrides]]
+module = ["anthropic.*"]
+ignore_missing_imports = false  # anthropic ships stubs, expect them
