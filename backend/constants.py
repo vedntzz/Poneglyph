@@ -17,15 +17,16 @@ extra_body/extra_headers pattern. See sessions/006-orchestrator.md.
 from __future__ import annotations
 
 # Per-agent token budgets (client-side ceilings).
-# Values tuned by agent complexity and typical workload.
-# Scout/Scribe: single-call extraction tasks.
-# Archivist: multi-round agentic tool-use loop.
-# Drafter: multi-round reading + long report generation.
-# Auditor: most expensive — vision re-verification + adversarial loop.
+# Tuned from observed usage in live demo runs (2026-04-24):
+#   Scout: ~10k observed → 20k ceiling (single-call, images add tokens)
+#   Scribe: ~8k observed → 15k ceiling (single-call, text only)
+#   Archivist: ~42k observed → 60k ceiling (multi-round agentic loop)
+#   Drafter: ~33k observed → 50k ceiling (multi-round reading + generation)
+#   Auditor: ~83k observed → 120k ceiling (two-phase: vision + adversarial loop)
 AGENT_BUDGETS: dict[str, int] = {
-    "scout": 25_000,
-    "scribe": 25_000,
-    "archivist": 40_000,
+    "scout": 20_000,
+    "scribe": 15_000,
+    "archivist": 60_000,
     "drafter": 50_000,
-    "auditor": 60_000,
+    "auditor": 120_000,
 }

@@ -48,17 +48,17 @@ const AGENT_META: Record<
   scout: {
     label: "Scout",
     description: "Extracts evidence from scanned documents with pixel-coordinate vision",
-    budget: 25_000,
+    budget: 20_000,
   },
   scribe: {
     label: "Scribe",
     description: "Processes meeting transcripts into structured minutes",
-    budget: 25_000,
+    budget: 15_000,
   },
   archivist: {
     label: "Archivist",
     description: "Answers queries by reading the project binder on demand",
-    budget: 40_000,
+    budget: 60_000,
   },
   drafter: {
     label: "Drafter",
@@ -68,7 +68,7 @@ const AGENT_META: Record<
   auditor: {
     label: "Auditor",
     description: "Adversarially verifies every claim against cited sources",
-    budget: 60_000,
+    budget: 120_000,
   },
   orchestrator: {
     label: "Orchestrator",
@@ -143,19 +143,25 @@ function AgentCard({
   const usedPercent = hasBudget
     ? (state.tokensUsed / meta.budget) * 100
     : 0;
+  const isOverBudget = hasBudget && state.tokensUsed > meta.budget;
 
   // Color the progress bar based on consumption
   let barColor = "bg-emerald-500";
-  if (usedPercent > 75) barColor = "bg-red-500";
+  if (isOverBudget || usedPercent > 75) barColor = "bg-red-500";
   else if (usedPercent > 50) barColor = "bg-amber-500";
+
+  // Show "Over budget" badge when done but exceeded ceiling
+  const showOverBudget = isOverBudget && state.status === "done";
 
   return (
     <Card
       className={
         state.status === "running"
           ? "border-amber-300 shadow-md transition-all duration-300"
-          : state.status === "done"
+          : state.status === "done" && !showOverBudget
           ? "border-emerald-300 transition-all duration-300"
+          : state.status === "done" && showOverBudget
+          ? "border-amber-300 transition-all duration-300"
           : state.status === "error"
           ? "border-red-300 transition-all duration-300"
           : "transition-all duration-300"
@@ -164,7 +170,13 @@ function AgentCard({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">{meta.label}</CardTitle>
-          <StatusBadge status={state.status} />
+          {showOverBudget ? (
+            <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">
+              Over budget
+            </Badge>
+          ) : (
+            <StatusBadge status={state.status} />
+          )}
         </div>
         <CardDescription className="text-xs">
           {meta.description}
@@ -218,10 +230,14 @@ export default function DemoPage() {
   const [isDone, setIsDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  // Track whether the pipeline completed so we can suppress the
+  // spurious "connection lost" error when the SSE stream closes normally.
+  const pipelineCompletedRef = useRef(false);
 
   const handleEvent = useCallback(
     (data: Record<string, unknown>) => {
       if (data.type === "done") {
+        pipelineCompletedRef.current = true;
         setIsRunning(false);
         setIsDone(true);
         return;
@@ -253,6 +269,7 @@ export default function DemoPage() {
     setIsRunning(true);
     setIsDone(false);
     setError(null);
+    pipelineCompletedRef.current = false;
 
     // Close any existing connection
     if (eventSourceRef.current) {
@@ -273,11 +290,12 @@ export default function DemoPage() {
     };
 
     es.onerror = () => {
-      // EventSource reconnects automatically on transient errors.
-      // If the connection was closed normally (after "done"), this fires
-      // with readyState=CLOSED — which is expected, not an error.
-      if (es.readyState === EventSource.CLOSED) {
+      // EventSource fires onerror when the stream closes — even after
+      // a normal "done" event. Suppress the false alarm if the pipeline
+      // already completed successfully.
+      if (pipelineCompletedRef.current || es.readyState === EventSource.CLOSED) {
         setIsRunning(false);
+        es.close();
         return;
       }
       setError("Connection to backend lost. Is the server running?");
@@ -303,8 +321,7 @@ export default function DemoPage() {
           </h1>
           <p className="text-muted-foreground">
             Multi-agent institutional memory for development projects.
-            Each agent has a visible task budget — watch the token
-            countdowns as Opus 4.7 self-prioritizes in real time.
+            Live token accounting across the pipeline.
           </p>
         </div>
 
