@@ -124,11 +124,35 @@
 
 ---
 
+## Reality check: task_budget not on public API
+
+**Date:** 2026-04-24 (post-session addendum)
+
+Session 007 wired task budgets across all 5 agents, then hit a wall: the API rejects `task_budget` with 400 "Extra inputs are not permitted."
+
+**Three invocation patterns tested, all failed:**
+
+1. `client.messages.create(extra_body={"task_budget": 25_000}, extra_headers={"anthropic-beta": "task-budgets-2026-03-13"})` — 400: "task_budget: Extra inputs are not permitted"
+2. `client.messages.create(task_budget=25_000)` — TypeError: "unexpected keyword argument"
+3. `client.beta.messages.create(task_budget=25_000)` — TypeError: "unexpected keyword argument"
+
+Baseline calls without `task_budget` succeed. The SDK defines `BetaTokenTaskBudgetParam` as a type, but the Messages API does not accept the parameter. Conclusion: `task_budget` appears to be a Claude Code internal feature, not yet available on the public Messages API.
+
+**Pivot:** Removed all `extra_body`/`extra_headers` for task_budget from agent API calls. Kept everything else:
+- Real `response.usage` token tracking (accumulated across agentic loop rounds)
+- Client-side budget ceilings in `constants.py`
+- SSE events with real `tokens_used` and `budget_remaining`
+- Frontend progress bars showing actual consumption
+
+This is arguably **more honest** than the original design: we're showing actual token spend against a client-side cap, not a model-self-reported countdown. The user sees exactly how many tokens each agent consumed — not what the model thinks it used.
+
+**Lesson for METHODOLOGY.md:** Beta features documented in SDK types may not be live on the public API. Always verify with a minimal test call before building on them. A type definition is not a promise of API availability.
+
+---
+
 ## Next Session (007) Definition of Ready — Draft
 
 **Scope:**
 - Deterministic demo mode: pre-canned agent responses for the canonical demo flow
-- Task budget beta header injection in agent API calls
-- Real token tracking from `response.usage` (or accept simulated as HACKATHON COMPROMISE)
 - Visual polish on /demo page: document upload area, query input, report display
 - Evals framework

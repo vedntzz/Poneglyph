@@ -212,6 +212,10 @@ class AuditorAgent:
             )
         self.client = anthropic.Anthropic(api_key=resolved_key)
         self.system_prompt = self._load_system_prompt()
+        # Accumulated token usage across all API calls in a single verify().
+        # Includes both vision check calls and main verification loop calls.
+        # Read by the Orchestrator after verify() to emit real budget data via SSE.
+        self.total_tokens_used: int = 0
 
     @staticmethod
     def _load_system_prompt() -> str:
@@ -247,6 +251,9 @@ class AuditorAgent:
         Raises:
             anthropic.APIError: on API failures.
         """
+        # Reset token counter for this verify invocation
+        self.total_tokens_used = 0
+
         if not draft.claims:
             return VerifiedSection(
                 section_name=draft.section_name,
@@ -445,6 +452,9 @@ class AuditorAgent:
                 ],
             )
 
+            # Track real token usage from response.usage
+            self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
+
             # Extract text response
             for block in response.content:
                 if block.type == "text":
@@ -511,6 +521,9 @@ class AuditorAgent:
                 thinking={"type": "adaptive"},
                 messages=messages,
             )
+
+            # Track real token usage from response.usage
+            self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
             # Check for final verification result
             result = self._check_for_verification(response, draft, vision_results)
