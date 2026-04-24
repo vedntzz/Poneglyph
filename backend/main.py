@@ -37,6 +37,20 @@ app = FastAPI(
     description="Multi-agent institutional memory for development projects",
     version="0.1.0",
 )
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # CORS: allow the Next.js frontend in dev
 app.add_middleware(
