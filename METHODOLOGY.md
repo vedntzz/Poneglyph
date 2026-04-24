@@ -28,6 +28,16 @@ AI-assisted development is new enough that there's no established methodology. W
 
 ---
 
+## Lessons Learned
+
+### Integration tests that exercise the cross-agent pipeline are not optional
+
+Isolated agent tests miss contract mismatches. In Session 008, `test_scribe.py` passed while the live demo crashed — because the test only checked Scribe's own output fields, never the identity fields (`meeting_id`, `title`, `commitment_id`) that the Orchestrator reads when emitting SSE events. The Orchestrator is the consumer of Scribe's return type, but no test exercised that interface.
+
+**Rule:** every agent's return type must be tested through the lens of its downstream consumer, not just its own correctness. If Agent B reads `record.field_x` from Agent A's output, a test must assert `field_x` exists and is populated. Isolated agent tests verify extraction; integration tests verify contracts.
+
+---
+
 ## Session Index
 
 | Session | Slug | Focus |

@@ -116,6 +116,11 @@ Meeting transcripts typically start with metadata: date, location,
 attendees, project name. Extract all of this. If the date is ambiguous
 or missing, flag it in the notes field.
 
+Also produce a short descriptive **title** for the meeting based on its
+agenda or key topics — e.g. "Q2 Progress Review with District Teams".
+The title is shown in the UI and project binder; keep it under 80
+characters.
+
 ### 8. Never fabricate information
 
 If the transcript is unclear about who said what, or a commitment's
