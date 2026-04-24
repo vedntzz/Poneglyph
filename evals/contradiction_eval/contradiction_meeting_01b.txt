@@ -1,0 +1,21 @@
+SYNTHETIC DATA — Generated for Poneglyph contradiction detection evaluation.
+
+Meeting: Q1 Budget Review
+Date: 2026-03-15
+Attendees: Rajesh Sharma, Meena Patel, Priya Nair
+
+---
+
+Rajesh Sharma: Let's review the Q1 spending. Priya, where are we on budget utilization?
+
+Priya Nair: Overall we're at 78% utilization. Most line items are on track. Training materials came in at Rs 25,000 — well within the Rs 25,000 budget.
+
+Rajesh Sharma: Good, that's efficient. Meena, quality was fine at that budget?
+
+Meena Patel: Yes. We went with black-and-white printing instead of color for the manuals. Saved a lot. The visual aids are still laminated and color.
+
+Rajesh Sharma: Smart call. What about the trainer costs?
+
+Priya Nair: Rs 30,000 as planned — 12 sessions at Rs 2,500 each.
+
+Rajesh Sharma: Perfect. Full utilization there. Let's keep the same approach for Q2.

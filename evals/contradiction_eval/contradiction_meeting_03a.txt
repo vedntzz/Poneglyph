@@ -1,0 +1,21 @@
+SYNTHETIC DATA — Generated for Poneglyph contradiction detection evaluation.
+
+Meeting: Livestock Program Launch Planning
+Date: 2026-01-25
+Attendees: Rajesh Sharma, Meena Patel, Sunita Verma
+
+---
+
+Rajesh Sharma: The livestock support program is a new addition for this year. Meena, what's the plan?
+
+Meena Patel: We're targeting 500 beneficiaries across both districts — 300 in Sagar, 200 in Damoh. Each beneficiary gets a package: 2 goats or 5 poultry birds, veterinary support for 6 months, and a feeding kit.
+
+Rajesh Sharma: 500 beneficiaries. That's ambitious but achievable if we start by February.
+
+Sunita Verma: I can handle the Damoh 200. We've already identified the villages.
+
+Meena Patel: Sagar's 300 will be spread across 6 blocks. I'll need Ankit's support for distribution logistics.
+
+Rajesh Sharma: Agreed. 500 beneficiaries total — 300 Sagar, 200 Damoh. Committed for delivery by June 30. This goes into our annual target.
+
+Meena Patel: Noted. 500 by June 30.

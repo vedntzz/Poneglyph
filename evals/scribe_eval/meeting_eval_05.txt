@@ -1,0 +1,38 @@
+SYNTHETIC DATA — Generated for Poneglyph evaluation. Not real.
+
+Project: Madhya Pradesh Farmer Producer Company (MP-FPC)
+Meeting: Informal Stakeholder Discussion (over chai, loosely structured)
+Date: 2026-04-12
+Location: Chai stall near FPC office, Rehli
+Duration: ~20 minutes
+
+Present:
+- Ankit Verma (District Coordinator)
+- Govind Patel (Chair, Rehli FPC-1)
+- 3 unnamed FPC members (farmers)
+
+Note: This is not a formal meeting. Transcribed from Ankit's handwritten notes taken after the conversation.
+
+---
+
+Ankit Verma: Govind bhai, how is the cold storage working out? Are farmers using it?
+
+Govind Patel: It's working, but honestly, the charges are too high for small farmers. Rs 1.50 per kg per month — a farmer with 2 tonnes pays Rs 3,000 a month. Many can't afford it. They'd rather sell at the mandi at a loss.
+
+Farmer 1: I stored 500 kg of potato in February. By the time I pay 3 months storage, that's Rs 2,250. The price difference between February and May is maybe Rs 3 per kg — so I save Rs 1,500 on price but pay Rs 2,250 for storage. I'm losing money.
+
+Ankit Verma: That's a valid concern. The economics only work for larger quantities?
+
+Govind Patel: Yes, or if the FPC stores collectively. We stored 45 tonnes last month as a group — the per-farmer cost is lower because we negotiate a bulk rate. But individual farmers? It doesn't make sense.
+
+Farmer 2: Also the road to the cold storage is still bad after the rains. It takes an extra hour compared to the direct mandi route. The transport cost eats into any price advantage.
+
+Ankit Verma: What if we could get the storage rate down to Rs 1 per kg?
+
+Govind Patel: That would change things. At Rs 1, even 1-tonne farmers break even. But the cold storage manager says he can't go below Rs 1.25 — his power costs are fixed.
+
+Farmer 3: What we really need is a grading and sorting center at the cold storage. Right now we sort at the farm, lose 10% to damage, then transport. If we sort at the cold storage, the rejection rate is lower and the quality premium is higher.
+
+Govind Patel: He's right. A sorting center would add Rs 2-3 per kg in value. That's the real argument for cold storage — quality, not just timing.
+
+Ankit Verma: I'll take this back to Rajesh sir. A sorting center wasn't in the original scope but it could be a Phase 2 addition. Let me see what's possible.

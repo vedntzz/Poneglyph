@@ -1,0 +1,23 @@
+SYNTHETIC DATA — Generated for Poneglyph contradiction detection evaluation.
+
+Meeting: Livestock Program Midpoint Review
+Date: 2026-04-10
+Attendees: Rajesh Sharma, Meena Patel, Sunita Verma
+
+---
+
+Rajesh Sharma: Meena, where are we on the livestock program?
+
+Meena Patel: Good progress. We've distributed to 210 beneficiaries so far — 140 in Sagar, 70 in Damoh. That's 60% of our target of 350.
+
+Sunita Verma: Damoh is a bit behind because the veterinary officer was transferred in March. We lost 3 weeks finding a replacement.
+
+Rajesh Sharma: 60% is solid for the midpoint. When do we expect to hit the full 350?
+
+Meena Patel: By end of May. The remaining 140 are in villages we've already surveyed. It's just the distribution logistics and vet scheduling.
+
+Rajesh Sharma: Make sure every distribution is documented — beneficiary lists, photos of handover, GPS coordinates. The World Bank will specifically look at this program because it's new.
+
+Meena Patel: Already on it. We have full documentation for 190 of the 210 distributed so far. The remaining 20 from the first week didn't have a photographer — I'm going back to collect retroactive documentation.
+
+Rajesh Sharma: Good. Let's aim for 100% documentation coverage going forward.

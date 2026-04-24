@@ -1,0 +1,21 @@
+SYNTHETIC DATA — Generated for Poneglyph contradiction detection evaluation.
+
+Meeting: Infrastructure Planning Review
+Date: 2026-01-20
+Attendees: Rajesh Sharma, Ankit Verma, Dr. Suresh Kumar
+
+---
+
+Rajesh Sharma: Ankit, the Damoh warehouse — what's the timeline?
+
+Ankit Verma: We've finalized the contractor. Construction starts next week. Based on the contractor's estimate, we'll have the warehouse complete and ready for handover by February 28.
+
+Rajesh Sharma: February 28 — firm?
+
+Ankit Verma: Yes. The contractor is experienced, the materials are procured. February 28 is committed.
+
+Dr. Suresh Kumar: I'll make sure the government inspection is scheduled for the first week of March so there's no delay after construction.
+
+Rajesh Sharma: Good. February 28 for construction completion, government inspection first week of March. Ankit, you own this deadline.
+
+Ankit Verma: Confirmed. February 28.

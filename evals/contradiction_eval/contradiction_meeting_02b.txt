@@ -1,0 +1,21 @@
+SYNTHETIC DATA — Generated for Poneglyph contradiction detection evaluation.
+
+Meeting: Infrastructure Status Update
+Date: 2026-03-20
+Attendees: Rajesh Sharma, Ankit Verma, Priya Nair
+
+---
+
+Rajesh Sharma: What's the status on the Damoh warehouse?
+
+Ankit Verma: Construction is at 70%. We had some delays with the roofing contractor — he had supply chain issues with the steel beams. We're now targeting completion by April end.
+
+Rajesh Sharma: April end. That's tight with the World Bank mission in April. Will it be presentable?
+
+Ankit Verma: The structure will be fully built by mid-April. Finishing work — painting, electrical, plumbing — runs through April. We can show the Bank a near-complete facility.
+
+Priya Nair: Can we at least do the government inspection before the Bank visit?
+
+Ankit Verma: I'll schedule the inspection for the third week of April. The structural work will be done by then.
+
+Rajesh Sharma: Fine. Make sure we document every stage of construction with photos. The Bank will want to see the progress trajectory.

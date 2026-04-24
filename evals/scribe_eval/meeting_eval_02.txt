@@ -1,0 +1,44 @@
+SYNTHETIC DATA — Generated for Poneglyph evaluation. Not real.
+
+Project: Madhya Pradesh Farmer Producer Company (MP-FPC)
+Meeting: Emergency Coordination — Flood Impact Assessment
+Date: 2026-03-18
+Location: Emergency call (all remote)
+Duration: 25 minutes
+
+Attendees:
+- Rajesh Sharma (Project Director)
+- Priya Nair (State Program Manager)
+- Ankit Verma (District Coordinator, Sagar)
+- Meena Patel (Field Operations Lead)
+
+---
+
+Rajesh Sharma: This is an emergency call. The unseasonal rains last week have caused flooding in parts of Sagar and Damoh districts. We need to assess the impact on project infrastructure and beneficiaries. Ankit, what's the ground situation?
+
+Ankit Verma: It's bad in Rehli and Banda blocks. Three of our AgriMarts in Rehli have water damage. AM-SGR-003 has 2 feet of standing water inside — all fertilizer stock is ruined, estimated loss Rs 45,000. AM-SGR-005 and AM-SGR-007 have minor water ingress but stock was elevated on pallets, so no loss there.
+
+Priya Nair: What about the cold storage in Rehli?
+
+Ankit Verma: The cold storage facility is on higher ground — no water damage. But the access road is washed out. Trucks can't reach it. We're looking at 5 to 7 days before the road is repaired.
+
+Meena Patel: On the beneficiary side, we've lost contact with field staff in 4 villages in Banda block. Phone towers are down. I'm sending a team tomorrow to assess.
+
+Rajesh Sharma: Insurance?
+
+Ankit Verma: We have coverage for the AgriMart stock but the policy has a 72-hour reporting window. I need to file the claim for AM-SGR-003 by tomorrow evening.
+
+Rajesh Sharma: Do it today. Don't wait. Decisions:
+1. Ankit files insurance claim for AM-SGR-003 today
+2. Meena sends assessment team to Banda block tomorrow morning
+3. Priya prepares force majeure notification for World Bank — we may need to invoke the clause for any Q1 targets we miss
+4. Ankit arranges alternative access to cold storage (can farmers use the Khurai road?)
+5. All — damage assessment report due by March 22
+
+This is a setback but not a disaster. The cold storage being safe is the critical thing. Let's move fast on the insurance and the assessment.
+
+Priya Nair: I'll draft the force majeure note tonight. One question — do we declare the Rehli AgriMarts non-operational in our tracker?
+
+Rajesh Sharma: AM-SGR-003 is non-operational until stock is replaced. The other two can reopen once they're cleaned up — give it 48 hours. But yes, our operational AgriMart count drops from 28 to 27 until AM-SGR-003 is back.
+
+Ankit Verma: Understood. I'll update the tracker.

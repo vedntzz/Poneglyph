@@ -1,0 +1,48 @@
+SYNTHETIC DATA — Generated for Poneglyph evaluation. Not real.
+
+Project: Madhya Pradesh Farmer Producer Company (MP-FPC)
+Meeting: Training Program Review
+Date: 2026-03-25
+Location: Project Office, Sagar
+Duration: 40 minutes
+
+Attendees:
+- Meena Patel (Field Operations Lead)
+- Dr. Anita Verma (KVK Damoh, Lead Trainer)
+- Sunita Verma (Damoh District Coordinator)
+- Preeti Singh (Gender and Inclusion Officer)
+
+---
+
+Meena Patel: Let's review where we are on the training program. Dr. Verma, overall numbers first.
+
+Dr. Anita Verma: We've completed 11 training sessions across both districts since January. Total unique participants: 412. Breakdown: 7 PHM sessions (289 participants), 3 organic farming sessions (98 participants), and 1 soil testing camp (25 participants — that was the pilot).
+
+Meena Patel: Target was 500 by end of Q1. We're at 412 with 5 days left. Can we close the gap?
+
+Dr. Anita Verma: I have 2 more sessions scheduled — one in Gumla on March 28 (expected 40-50 participants) and one in Rehli on March 30 (expected 30-40). If both go well, we'll be between 480 and 500.
+
+Preeti Singh: Gender numbers?
+
+Dr. Anita Verma: 178 women out of 412 total — that's 43%. The PHM sessions skew higher for women (48%) because we specifically targeted SHG members. The organic farming sessions are lower at 31% — those draw more male farmers.
+
+Preeti Singh: 43% is above our 40% target, which is great. But I want to flag something. In the Patharia session last month, 3 Gond tribal participants couldn't follow the training because it was conducted entirely in Hindi. They speak Gondi. We need to address language inclusion.
+
+Meena Patel: What do you propose?
+
+Preeti Singh: Two things. First, for villages with significant tribal population, we should have a local translator present. Second, we should produce visual training aids — diagrams and photos that don't depend on language. Both are low cost.
+
+Dr. Anita Verma: I agree. The visual aids would help everyone, not just tribal participants. Many farmers are semi-literate even in Hindi.
+
+Meena Patel: Approved. Preeti, develop a set of visual training aids by April 15. Sunita, identify villages that need translators — I want a list by next week.
+
+Sunita Verma: I'll have the list by April 1. I know at least 5 villages in Damoh where we'll need Gondi translators.
+
+Meena Patel: Good. Decisions and commitments:
+1. Dr. Verma: complete 2 remaining sessions (March 28 Gumla, March 30 Rehli) — target 480-500 total
+2. Preeti: visual training aids by April 15
+3. Sunita: village list needing translators by April 1
+4. For Q2: target 300 additional participants, maintain 40%+ women participation
+5. All training sessions must now include feedback forms — no exceptions
+
+Open question: should we add a financial literacy module? Multiple SHGs have asked for it. Tabling for the next program review.

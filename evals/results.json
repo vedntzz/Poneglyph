@@ -1,0 +1,85 @@
+{
+  "run_timestamp": "2026-04-24T18:11:59.738803+00:00",
+  "model": "claude-opus-4-7",
+  "contradiction": [
+    {
+      "test_id": "contradiction_01",
+      "description": "Silent walk-back: budget commitment changed without acknowledgment",
+      "status": "success",
+      "contradiction_count": 1,
+      "contradictions": [
+        {
+          "description": "The Q1 training materials budget was approved at Rs 50,000 in the January planning meeting, but the March Q1 review reports the training materials budget as Rs 25,000 (shown as both budget and actual) without acknowledging that the originally approved budget was Rs 50,000. The meeting mentions a cost-saving switch to black-and-white printing but presents Rs 25,000 as the budget line rather than as a saving against the Rs 50,000 approved figure. This is an unacknowledged change to the approved budget line item \u2014 the reduction from Rs 50,000 to Rs 25,000 is not explicitly reconciled with the original approval.",
+          "earlier_source": "meetings/mtg-1acc2874.md",
+          "later_source": "meetings/mtg-a67dabf5.md",
+          "earlier_claim": "Rs 50,000 approved for PHM training materials in Q1 (500 copies of training manual plus laminated visual aids for 12 sessions), to be recorded as a line item under Capacity Building \u2014 Training Materials.",
+          "later_claim": "Q1 Budget Snapshot lists Training materials with Budget = Rs 25,000 and Actual = Rs 25,000, with a note about B&W printing for manuals \u2014 treating Rs 25,000 as the budget figure rather than acknowledging it as a saving against the Rs 50,000 originally approved.",
+          "severity": "medium"
+        }
+      ],
+      "tokens_used": 11149,
+      "elapsed_seconds": 37.61
+    },
+    {
+      "test_id": "contradiction_02",
+      "description": "Deadline drift: commitment deadline silently extended twice",
+      "status": "success",
+      "contradiction_count": 2,
+      "contradictions": [
+        {
+          "description": "The Damoh warehouse completion deadline was shifted from February 28, 2026 to end of April 2026 (April 30, 2026) without any acknowledgment of the slippage. The March 20 meeting discusses construction being at 70% and targets end-of-April completion, but never references the original February 28 commitment or explains why the deadline moved by two months. The meeting notes delays due to 'roofing contractor's steel beam supply chain issues' but does not frame this as a revision of the prior commitment.",
+          "earlier_source": "meetings/mtg-b0341887.md",
+          "later_source": "meetings/mtg-10cb1c1f.md",
+          "earlier_claim": "The Damoh warehouse construction will be completed and ready for handover by February 28, 2026. Ankit Verma explicitly owns this deadline. Rajesh Sharma pressed on whether February 28 was firm; Ankit Verma confirmed it as committed.",
+          "later_claim": "Target completion of the Damoh warehouse by end of April 2026. Commitments list completion (finishing work) due 2026-04-30, with structural build by 2026-04-15.",
+          "severity": "high"
+        },
+        {
+          "description": "The government inspection of the Damoh warehouse was rescheduled from the first week of March 2026 to the third week of April 2026 (a ~7-week slip), and ownership shifted from Dr. Suresh Kumar to Ankit Verma, without any acknowledgment of the prior commitment or explanation of the reassignment. Dr. Suresh Kumar is not even listed as an attendee in the March 20 meeting.",
+          "earlier_source": "meetings/mtg-b0341887.md",
+          "later_source": "meetings/mtg-10cb1c1f.md",
+          "earlier_claim": "The government inspection of the Damoh warehouse will be scheduled for the first week of March 2026 (due 2026-03-07), owned by Dr. Suresh Kumar.",
+          "later_claim": "Government inspection to be conducted in the third week of April (due 2026-04-24), owned by Ankit Verma.",
+          "severity": "high"
+        }
+      ],
+      "tokens_used": 12748,
+      "elapsed_seconds": 46.59
+    },
+    {
+      "test_id": "contradiction_03",
+      "description": "Scope reduction: beneficiary target silently reduced",
+      "status": "success",
+      "contradiction_count": 3,
+      "contradictions": [
+        {
+          "description": "The total beneficiary target for the livestock program was reduced from 500 to 350 between the January launch meeting and the April midpoint review, with no acknowledgment or explanation of the change in the later meeting. The April meeting treats 350 as the established target ('350-beneficiary target') as if it had always been the number, rather than noting it was revised down from the original 500-beneficiary commitment (300 Sagar + 200 Damoh).",
+          "earlier_source": "meetings/mtg-2c5c0eaf.md",
+          "later_source": "meetings/mtg-c4b50ed0.md",
+          "earlier_claim": "Launch livestock support program targeting 500 beneficiaries total \u2014 300 in Sagar district and 200 in Damoh district \u2014 for delivery by 30 June 2026. The 500-beneficiary target will be incorporated into the annual target.",
+          "later_claim": "As of the meeting date, 210 of the 350-beneficiary target (60%) have received distributions \u2014 140 in Sagar and 70 in Damoh. Commitment: Complete distribution to all 350 beneficiaries by 2026-05-31.",
+          "severity": "high"
+        },
+        {
+          "description": "The delivery deadline was moved forward from 30 June 2026 to 31 May 2026 without acknowledgment. The January meeting firmly committed to full rollout by 30 June 2026, but the April meeting's commitment and next steps treat 31 May 2026 as the completion target with no note that the deadline was advanced by a month.",
+          "earlier_source": "meetings/mtg-2c5c0eaf.md",
+          "later_source": "meetings/mtg-c4b50ed0.md",
+          "earlier_claim": "Full rollout to all 500 beneficiaries committed by 30 June 2026. Sunita Verma and Meena Patel both owned commitments with due date 2026-06-30.",
+          "later_claim": "The team is on track to reach the full target by end of May. Meena Patel to complete distribution to all 350 beneficiaries by 2026-05-31.",
+          "severity": "medium"
+        },
+        {
+          "description": "Ownership of the Damoh distribution silently shifted. In January, Sunita Verma owned the 200-beneficiary Damoh rollout and Meena Patel owned the 300-beneficiary Sagar rollout. In April, Meena Patel is assigned sole ownership of completing distribution to all 350 beneficiaries 'across already-surveyed villages in Sagar and Damoh' \u2014 absorbing Sunita's Damoh responsibility \u2014 without any acknowledgment of the handover or change in ownership.",
+          "earlier_source": "commitments/cmt-3d9548e2.md",
+          "later_source": "commitments/cmt-750c362c.md",
+          "earlier_claim": "Owner: Sunita Verma \u2014 Deliver livestock support package to 200 beneficiaries in Damoh district (villages already identified). Due 2026-06-30.",
+          "later_claim": "Owner: Meena Patel \u2014 Complete distribution to all 350 beneficiaries (remaining 140 across already-surveyed villages in Sagar and Damoh). Due 2026-05-31.",
+          "severity": "medium"
+        }
+      ],
+      "tokens_used": 13628,
+      "elapsed_seconds": 57.27
+    }
+  ],
+  "total_elapsed_seconds": 141.54
+}
