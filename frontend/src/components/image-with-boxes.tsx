@@ -14,7 +14,7 @@ export interface BoundingBox {
   x2: number;
   y2: number;
   label: string;
-  confidence: "HIGH" | "MEDIUM" | "LOW";
+  confidence: string;
 }
 
 interface ImageWithBoxesProps {
@@ -37,7 +37,7 @@ interface ImageWithBoxesProps {
 // ─────────────────────────────────────────────────────────────
 
 const CONFIDENCE_COLORS: Record<
-  BoundingBox["confidence"],
+  string,
   { stroke: string; fill: string; text: string }
 > = {
   HIGH: {
@@ -56,6 +56,12 @@ const CONFIDENCE_COLORS: Record<
     text: "text-red-400",
   },
 };
+
+/** Normalize confidence to uppercase, with fallback to HIGH for unknown values. */
+function resolveConfidenceColors(confidence: string | undefined) {
+  const key = (confidence ?? "").toUpperCase();
+  return CONFIDENCE_COLORS[key] ?? CONFIDENCE_COLORS.HIGH;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Component
@@ -104,7 +110,7 @@ export function ImageWithBoxes({
       >
         <AnimatePresence>
           {boxes.map((box, index) => {
-            const colors = CONFIDENCE_COLORS[box.confidence];
+            const colors = resolveConfidenceColors(box.confidence);
             const isSelected = box.id === selectedBoxId;
             const isHovered = box.id === hoveredId;
             const width = box.x2 - box.x1;
@@ -155,7 +161,7 @@ export function ImageWithBoxes({
         {hoveredId && (() => {
           const box = boxes.find((b) => b.id === hoveredId);
           if (!box) return null;
-          const colors = CONFIDENCE_COLORS[box.confidence];
+          const colors = resolveConfidenceColors(box.confidence);
 
           return (
             <g>
@@ -177,7 +183,7 @@ export function ImageWithBoxes({
                 fill="#a1a1aa"
               >
                 {box.label.slice(0, 36)}
-                {box.confidence !== "HIGH" && ` (${box.confidence})`}
+                {box.confidence?.toUpperCase() !== "HIGH" && ` (${box.confidence})`}
               </text>
             </g>
           );
