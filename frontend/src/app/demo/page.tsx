@@ -276,7 +276,9 @@ export default function DemoPage() {
       eventSourceRef.current.close();
     }
 
-    const url = `${BACKEND_URL}/api/orchestrator/stream?project_id=mp-fpc-2024&action=full_demo`;
+    // Canonical demo endpoint: resets the project and runs all 5 agents
+    // on fixed synthetic inputs. See /backend/main.py GET /api/demo/stream.
+    const url = `${BACKEND_URL}/api/demo/stream`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
 
@@ -336,12 +338,18 @@ export default function DemoPage() {
               ? "Running..."
               : isDone
               ? "Run Again"
-              : "Start Demo"}
+              : "Run Canonical Demo"}
           </Button>
 
           {isDone && (
             <span className="text-sm text-emerald-600 font-medium">
               Pipeline complete
+            </span>
+          )}
+
+          {!isRunning && !isDone && (
+            <span className="text-sm text-muted-foreground">
+              3 scanned forms + 2 meeting transcripts — resets project each run
             </span>
           )}
         </div>
