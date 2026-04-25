@@ -112,7 +112,7 @@ def generate_english_form() -> Path:
     # Summary
     draw.text(
         (100, y),
-        "Total beneficiaries registered: 47",
+        "Newly registered this session: 47 (cumulative project total: 359)",
         fill=TEXT_COLOR,
         font=font_medium,
     )
@@ -174,7 +174,7 @@ def generate_hindi_form() -> Path:
     # Training details
     draw.text((100, y), "Prashikshan / Training: Post-Harvest Management (PHM)", fill=TEXT_COLOR, font=font_medium)
     y += 40
-    draw.text((100, y), "Tarikh / Date: 18 April 2026", fill=TEXT_COLOR, font=font_medium)
+    draw.text((100, y), "Tarikh / Date: 20 February 2026", fill=TEXT_COLOR, font=font_medium)
     y += 40
     draw.text((100, y), "Gaon / Village: Gumla", fill=TEXT_COLOR, font=font_medium)
     y += 40
@@ -235,7 +235,7 @@ def generate_hindi_form() -> Path:
     y += 40
     draw.text(
         (100, y),
-        "Prashikshan avadhi / Duration: 3 din / 3 days (16-18 April 2026)",
+        "Prashikshan avadhi / Duration: 3 din / 3 days (18-20 February 2026)",
         fill=TEXT_COLOR,
         font=font_medium,
     )
@@ -309,7 +309,7 @@ def generate_cold_storage_form() -> Path:
         ("Temperature Range:", "-2°C to 10°C (verified)"),
         ("Power Backup:", "125 KVA DG set — operational"),
         ("Construction Status:", "Complete — handed over 2026-03-28"),
-        ("Land Allotment:", "Approved by District Collector 2026-02-15"),
+        ("Land Allotment:", "Approved by District Collector 2026-04-05"),
     ]
     for label, value in specs:
         draw.text((120, y), label, fill=TEXT_COLOR, font=font_small)
