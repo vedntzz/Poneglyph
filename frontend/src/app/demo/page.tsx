@@ -482,6 +482,11 @@ export default function DemoPage() {
   );
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  // Refs to avoid stale closures in SSE handler — EventSource.onmessage
+  // captures the handler once, but these values change during the pipeline.
+  const evidenceByImageRef = useRef(evidenceByImage);
+  evidenceByImageRef.current = evidenceByImage;
+  const handleEventRef = useRef<(data: Record<string, unknown>) => void>();
   const pipelineCompletedRef = useRef(false);
   const memoryEventCounterRef = useRef(0);
 
@@ -762,7 +767,7 @@ export default function DemoPage() {
           // Use citation source types as proxy for indicator mapping
           for (const citId of claim.citationIds) {
             // Find which indicator this evidence belongs to
-            for (const [, imgEvidence] of Object.entries(evidenceByImage)) {
+            for (const [, imgEvidence] of Object.entries(evidenceByImageRef.current)) {
               const match = imgEvidence.items.find((item) => item.id === citId);
               if (match && match.indicator) {
                 if (!vCounts[match.indicator]) {
@@ -789,8 +794,11 @@ export default function DemoPage() {
         return;
       }
     },
-    [evidenceByImage, runChoreography],
+    [runChoreography],
   );
+
+  // Keep handler ref current so EventSource always calls latest version
+  handleEventRef.current = handleEvent;
 
   // ─── SSE connection ───────────────────────────────────────
 
@@ -831,7 +839,7 @@ export default function DemoPage() {
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        handleEvent(data);
+        handleEventRef.current?.(data);
       } catch {
         // Ignore unparseable events
       }
