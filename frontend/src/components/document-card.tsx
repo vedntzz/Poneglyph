@@ -58,16 +58,24 @@ const STATUS_CONFIG: Record<
 
 function StatusPill({
   status,
+  type,
   evidenceCount,
 }: {
   status: DocumentStatus;
+  type: DocumentType;
   evidenceCount: number;
 }) {
   const config = STATUS_CONFIG[status];
-  const label =
-    status === "done"
-      ? `Done — ${evidenceCount} evidence item${evidenceCount !== 1 ? "s" : ""}`
-      : config.label;
+  let label = config.label;
+  if (status === "done") {
+    if (type === "form") {
+      label = `Done — ${evidenceCount} evidence item${evidenceCount !== 1 ? "s" : ""}`;
+    } else if (type === "transcript" && evidenceCount > 0) {
+      label = `Done — ${evidenceCount} commitment${evidenceCount !== 1 ? "s" : ""}`;
+    } else {
+      label = "Processed";
+    }
+  }
 
   return (
     <AnimatePresence mode="wait">
@@ -187,7 +195,7 @@ export function DocumentCard({
     >
       {/* Thumbnail or type icon */}
       {thumbnailUrl ? (
-        <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-sm bg-zinc-800">
+        <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-sm bg-zinc-800">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={thumbnailUrl}
@@ -197,7 +205,7 @@ export function DocumentCard({
           {status === "scanning" && <ScanLine />}
         </div>
       ) : (
-        <div className="flex h-12 w-10 shrink-0 items-center justify-center rounded-sm bg-zinc-800">
+        <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded-sm bg-zinc-800">
           <TypeIcon type={type} />
         </div>
       )}
@@ -212,7 +220,7 @@ export function DocumentCard({
           <span className="text-2xs capitalize text-zinc-600">{type}</span>
         </div>
         <div className="mt-1.5">
-          <StatusPill status={status} evidenceCount={evidenceCount} />
+          <StatusPill status={status} type={type} evidenceCount={evidenceCount} />
         </div>
       </div>
     </button>

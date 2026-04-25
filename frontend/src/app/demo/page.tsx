@@ -573,27 +573,18 @@ export default function DemoPage() {
         }));
 
         // Update document scanning status based on agent progress
-        const currentAction = (data.current_action as string) || "";
         const status = data.status as AgentStatus;
 
         if (agentName === "scout" && status === "running") {
-          // Try to find which document Scout is working on
-          for (const [filename, docId] of Object.entries(FILENAME_TO_DOC_ID)) {
-            if (
-              currentAction.toLowerCase().includes(filename.toLowerCase()) ||
-              currentAction.toLowerCase().includes(
-                filename.replace(".png", "").replace("_", " "),
-              )
-            ) {
-              setDocuments((prev) =>
-                prev.map((d) =>
-                  d.id === docId && d.status === "pending"
-                    ? { ...d, status: "scanning" as const }
-                    : d,
-                ),
-              );
-            }
-          }
+          // Scout progress events say "Reading document 1/3" — no filename.
+          // Mark all forms as scanning when Scout first starts running.
+          setDocuments((prev) =>
+            prev.map((d) =>
+              d.type === "form" && d.status === "pending"
+                ? { ...d, status: "scanning" as const }
+                : d,
+            ),
+          );
         }
 
         if (agentName === "scribe" && status === "running") {
@@ -611,13 +602,16 @@ export default function DemoPage() {
           (agentName === "scout" || agentName === "scribe") &&
           status === "done"
         ) {
-          // Mark all docs for this agent as done
+          // Mark all docs for this agent as done — catch both pending
+          // (if no running event arrived) and scanning states.
           setDocuments((prev) =>
             prev.map((d) => {
-              if (agentName === "scout" && d.type === "form" && d.status === "scanning") {
+              const shouldFinish =
+                d.status === "scanning" || d.status === "pending";
+              if (agentName === "scout" && d.type === "form" && shouldFinish) {
                 return { ...d, status: "done" as const };
               }
-              if (agentName === "scribe" && d.type === "transcript" && d.status === "scanning") {
+              if (agentName === "scribe" && d.type === "transcript" && shouldFinish) {
                 return { ...d, status: "done" as const };
               }
               return d;
@@ -634,26 +628,32 @@ export default function DemoPage() {
 
         const evidence: ImageEvidence = {
           imageFilename: filename,
-          items: rawItems.map((item) => ({
-            id: item.id as string,
-            summary: item.summary as string,
-            rawText: (item.raw_text as string) || "",
-            confidence:
-              (item.confidence as "HIGH" | "MEDIUM" | "LOW") || "HIGH",
-            indicator: (item.indicator as string) || "",
-            boundingBoxes: (
-              (item.bounding_boxes as Array<Record<string, number>>) || []
-            ).map((bb, i) => ({
-              id: `${item.id}-bb-${i}`,
-              x1: bb.x1 ?? 0,
-              y1: bb.y1 ?? 0,
-              x2: bb.x2 ?? 0,
-              y2: bb.y2 ?? 0,
-              label: (item.summary as string) || "",
-              confidence:
-                (item.confidence as "HIGH" | "MEDIUM" | "LOW") || "HIGH",
-            })),
-          })),
+          items: rawItems.map((item) => {
+            // Backend sends lowercase confidence ("high"/"medium"/"low").
+            // Normalize to uppercase to match the frontend type.
+            const confidence = (
+              ((item.confidence as string) || "high").toUpperCase()
+            ) as "HIGH" | "MEDIUM" | "LOW";
+
+            return {
+              id: item.id as string,
+              summary: item.summary as string,
+              rawText: (item.raw_text as string) || "",
+              confidence,
+              indicator: (item.indicator as string) || "",
+              boundingBoxes: (
+                (item.bounding_boxes as Array<Record<string, number>>) || []
+              ).map((bb, i) => ({
+                id: `${item.id}-bb-${i}`,
+                x1: bb.x1 ?? 0,
+                y1: bb.y1 ?? 0,
+                x2: bb.x2 ?? 0,
+                y2: bb.y2 ?? 0,
+                label: (item.summary as string) || "",
+                confidence,
+              })),
+            };
+          }),
         };
 
         setEvidenceByImage((prev) => ({
@@ -701,22 +701,55 @@ export default function DemoPage() {
 
       if (eventType === "memory_write") {
         memoryEventCounterRef.current += 1;
+        const filePath = (data.file_path as string) || "";
+        const agent = (data.agent as string) || "";
+        const summary = (data.summary as string) || "";
+
         const evt: MemoryEvent = {
           id: `mem-${memoryEventCounterRef.current}`,
           timestamp: Date.now() / 1000,
-          agent: (data.agent as string) || "",
-          filePath: (data.file_path as string) || "",
-          summary: (data.summary as string) || "",
+          agent,
+          filePath,
+          summary,
         };
         setMemoryEvents((prev) => [evt, ...prev]);
 
-        // Track commitments from scribe memory writes
-        const agent = (data.agent as string) || "";
-        if (agent === "scribe") {
+        // Scribe memory writes come in two kinds:
+        //   meetings/<id>.md    — one per transcript processed
+        //   commitments/<id>.md — one per commitment extracted
+        if (agent === "scribe" && filePath.startsWith("commitments/")) {
           setLiveCounts((prev) => ({
             ...prev,
             commitmentsTracked: prev.commitmentsTracked + 1,
           }));
+        }
+        if (agent === "scribe" && filePath.startsWith("meetings/")) {
+          // A meeting write means a transcript was fully processed.
+          // Count it toward "documents read" and update the transcript
+          // card with the commitment count parsed from the summary.
+          setLiveCounts((prev) => ({
+            ...prev,
+            documentsRead: prev.documentsRead + 1,
+          }));
+          const countMatch = summary.match(/(\d+)\s+commitment/);
+          const commitmentCount = countMatch
+            ? parseInt(countMatch[1], 10)
+            : 0;
+          setDocuments((prev) => {
+            // Find the first transcript not yet marked done and update it
+            const idx = prev.findIndex(
+              (d) => d.type === "transcript" && d.status !== "done",
+            );
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = {
+                ...updated[idx],
+                evidenceCount: commitmentCount,
+              };
+              return updated;
+            }
+            return prev;
+          });
         }
 
         return;
@@ -735,6 +768,17 @@ export default function DemoPage() {
         };
         setDraftSection(section);
         setRightPanelView({ kind: "draft" });
+        return;
+      }
+
+      if (eventType === "contradictions") {
+        // The orchestrator emits contradictions as a separate data event
+        // (not inside the done event). Build drift rows for the timeline.
+        const items = data.items as Array<Record<string, unknown>>;
+        if (items && items.length > 0) {
+          const rows = buildDriftRows(items);
+          setDriftRows(rows);
+        }
         return;
       }
 
@@ -1087,9 +1131,9 @@ export default function DemoPage() {
 /**
  * Build DriftRow data from contradiction events.
  *
- * The orchestrator may include contradiction data in the done event.
- * Each contradiction has: topic, meetings involved, values at each
- * meeting, and severity. We group by topic into rows.
+ * The orchestrator emits contradictions as a separate "contradictions" event
+ * with items shaped: { description, earlier_source, later_source,
+ * earlier_claim, later_claim, severity }. We group by description into rows.
  */
 function buildDriftRows(
   contradictions: Array<Record<string, unknown>>,
@@ -1097,26 +1141,27 @@ function buildDriftRows(
   const rowMap = new Map<string, DriftRow>();
 
   for (const c of contradictions) {
-    const topic = (c.topic as string) || (c.description as string) || "Unknown";
+    const description = (c.description as string) || "Unknown";
     const severity = (c.severity as "low" | "medium" | "high") || "medium";
-    const meeting1 = (c.meeting_1 as string) || "Meeting 1";
-    const meeting2 = (c.meeting_2 as string) || "Meeting 2";
-    const value1 = (c.value_1 as string) || (c.original as string) || "";
-    const value2 = (c.value_2 as string) || (c.changed_to as string) || "";
-    const description =
-      (c.description as string) || `${value1} → ${value2}`;
+    const earlierSource = (c.earlier_source as string) || "Meeting 1";
+    const laterSource = (c.later_source as string) || "Meeting 2";
+    const earlierClaim = (c.earlier_claim as string) || "";
+    const laterClaim = (c.later_claim as string) || "";
 
-    if (!rowMap.has(topic)) {
-      rowMap.set(topic, {
-        topic: topic.length > 20 ? topic.slice(0, 20) + "..." : topic,
+    const topic =
+      description.length > 30 ? description.slice(0, 30) + "..." : description;
+
+    if (!rowMap.has(description)) {
+      rowMap.set(description, {
+        topic,
         nodes: [
-          { meetingLabel: meeting1, value: value1 },
-          { meetingLabel: meeting2, value: value2 },
+          { meetingLabel: earlierSource, value: earlierClaim },
+          { meetingLabel: laterSource, value: laterClaim },
         ],
         bends: [
           {
             afterNodeIndex: 0,
-            delta: `${value1} → ${value2}`,
+            delta: `${earlierClaim} → ${laterClaim}`,
             severity,
             description,
           },
