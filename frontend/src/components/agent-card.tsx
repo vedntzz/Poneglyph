@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────
@@ -153,11 +153,22 @@ export function AgentCard({
         <StatusDot status={status} />
       </div>
 
-      {/* Current action */}
+      {/* Current action — cross-fade on text change (150ms) */}
       <div className="mt-2 min-h-[1.125rem]">
-        {currentAction && (
-          <p className="truncate text-2xs text-zinc-500">{currentAction}</p>
-        )}
+        <AnimatePresence mode="wait">
+          {currentAction && (
+            <motion.p
+              key={currentAction}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="truncate text-2xs text-zinc-500"
+            >
+              {currentAction}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Token bar */}

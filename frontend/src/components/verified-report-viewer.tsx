@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────
@@ -25,6 +27,8 @@ interface VerifiedReportViewerProps {
   onClaimClick: (claim: VerifiedClaim) => void;
   /** Currently selected claim (highlighted background). */
   selectedClaimId: string | null;
+  /** Whether to animate audit highlights on mount. */
+  animateAudit?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -85,6 +89,78 @@ function TagPill({
 // ─────────────────────────────────────────────────────────────
 
 /**
+ * Single claim with audit highlight animation.
+ *
+ * When animateAudit is true:
+ * 1. Amber background flash (250ms) as the "model is judging" feel
+ * 2. Tag pill fades in 100ms after the flash settles
+ * 3. For unsupported tags, a 2px red left bar fades in and stays
+ */
+function AuditableClaim({
+  claim,
+  index,
+  isSelected,
+  onClaimClick,
+  animateAudit,
+}: {
+  claim: VerifiedClaim;
+  index: number;
+  isSelected: boolean;
+  onClaimClick: (claim: VerifiedClaim) => void;
+  animateAudit: boolean;
+}) {
+  const [showFlash, setShowFlash] = useState(animateAudit);
+  const [showTag, setShowTag] = useState(!animateAudit);
+
+  useEffect(() => {
+    if (!animateAudit) return;
+
+    // Stagger: each claim starts its flash 200ms after the previous
+    const flashDelay = index * 200;
+    const flashTimer = setTimeout(() => {
+      setShowFlash(true);
+      // Flash lasts 250ms, then tag appears
+      const tagTimer = setTimeout(() => {
+        setShowFlash(false);
+        setShowTag(true);
+      }, 250);
+      return () => clearTimeout(tagTimer);
+    }, flashDelay);
+
+    return () => clearTimeout(flashTimer);
+  }, [animateAudit, index]);
+
+  const isUnsupported = claim.tag === "unsupported";
+
+  return (
+    <span
+      className={cn(
+        "relative inline rounded-sm px-0.5 transition-colors duration-150",
+        isSelected && "bg-zinc-800",
+        showFlash && animateAudit && "bg-amber-500/10",
+        isUnsupported && showTag && "border-l-2 border-l-red-500 pl-1.5",
+      )}
+    >
+      <span className="text-xs leading-relaxed text-zinc-300">
+        {claim.text}
+      </span>
+      <AnimatePresence>
+        {showTag && (
+          <motion.span
+            initial={animateAudit ? { opacity: 0 } : { opacity: 1 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+          >
+            <TagPill tag={claim.tag} onClick={() => onClaimClick(claim)} />
+          </motion.span>
+        )}
+      </AnimatePresence>
+      {" "}
+    </span>
+  );
+}
+
+/**
  * Renders a verified report section with inline ✓/⚠/✗ tag pills.
  *
  * Each claim is a sentence followed by a clickable tag. Clicking
@@ -98,6 +174,7 @@ export function VerifiedReportViewer({
   claims,
   onClaimClick,
   selectedClaimId,
+  animateAudit = false,
 }: VerifiedReportViewerProps) {
   if (claims.length === 0) {
     return (
@@ -114,28 +191,16 @@ export function VerifiedReportViewer({
       <h3 className="text-sm font-medium text-zinc-100">{sectionName}</h3>
 
       <div className="space-y-2">
-        {claims.map((claim) => {
-          const isSelected = claim.id === selectedClaimId;
-
-          return (
-            <span
-              key={claim.id}
-              className={cn(
-                "inline rounded-sm px-0.5 transition-colors duration-150",
-                isSelected && "bg-zinc-800",
-              )}
-            >
-              <span className="text-xs leading-relaxed text-zinc-300">
-                {claim.text}
-              </span>
-              <TagPill
-                tag={claim.tag}
-                onClick={() => onClaimClick(claim)}
-              />
-              {" "}
-            </span>
-          );
-        })}
+        {claims.map((claim, index) => (
+          <AuditableClaim
+            key={claim.id}
+            claim={claim}
+            index={index}
+            isSelected={claim.id === selectedClaimId}
+            onClaimClick={onClaimClick}
+            animateAudit={animateAudit}
+          />
+        ))}
       </div>
 
       {/* Summary counts */}

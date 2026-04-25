@@ -126,6 +126,8 @@ export function ReportCard({
 }: ReportCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
+  // Animate audit highlights on first expand only
+  const [hasExpandedOnce, setHasExpandedOnce] = useState(false);
 
   const verifiedCount = claims.filter((c) => c.tag === "verified").length;
   const unsupportedCount = claims.filter((c) => c.tag === "unsupported").length;
@@ -143,7 +145,10 @@ export function ReportCard({
     <div className="rounded-lg border border-zinc-800">
       {/* Header — always visible, clickable to expand */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => {
+          if (!isExpanded && !hasExpandedOnce) setHasExpandedOnce(true);
+          setIsExpanded(!isExpanded);
+        }}
         className="w-full px-5 py-4 text-left transition-colors hover:bg-zinc-900/50"
       >
         {/* Title row */}
@@ -254,6 +259,7 @@ export function ReportCard({
                 claims={displayClaims}
                 onClaimClick={onClaimClick}
                 selectedClaimId={selectedClaimId}
+                animateAudit={hasExpandedOnce && isExpanded}
               />
             </div>
           </motion.div>
