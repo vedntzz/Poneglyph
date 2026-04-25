@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-/** Tabs shown in the top nav. "Engine" links to /demo; others scroll to anchors. */
+/** Tabs shown in the top nav. All scroll to anchors on /app. */
 const TABS = [
   { id: "overview", label: "Overview", href: "#overview" },
   { id: "briefings", label: "Briefings", href: "#briefings" },
   { id: "drift", label: "Drift", href: "#drift" },
   { id: "logframe", label: "Logframe", href: "#logframe" },
   { id: "documents", label: "Documents", href: "#documents" },
-  { id: "engine", label: "Engine", href: "/demo" },
+  { id: "engine", label: "Engine", href: "#engine" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -73,17 +73,7 @@ export function AppNav({ activeSection, onCommandPalette }: AppNavProps) {
       <div className="flex items-center gap-1">
         {TABS.map((tab) => {
           const isActive = active === tab.id;
-          const isExternal = tab.id === "engine";
-
-          return isExternal ? (
-            <a
-              key={tab.id}
-              href={tab.href}
-              className="rounded-md px-3 py-1.5 text-2xs font-medium text-text-tertiary transition-colors hover:bg-hover-warm hover:text-text-primary"
-            >
-              {tab.label}
-            </a>
-          ) : (
+          return (
             <a
               key={tab.id}
               href={tab.href}

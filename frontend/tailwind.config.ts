@@ -7,7 +7,7 @@ import type { Config } from "tailwindcss";
  * 1. Dark (CSS-variable-based) — powers /demo dashboard and shadcn/ui components.
  * 2. Warm-light (direct hex) — powers the homepage at /. Named tokens below.
  *
- * Font sizes: 11 / 13 / 15 / 18 / 24 / 32 px — strict scale.
+ * Font sizes: 11 / 13 / 15 / 18 / 24 / 32 / 48 / 64 px — strict scale.
  * Spacing: Tailwind default 4px grid (1 = 4px).
  * Radius: 4px small, 6px standard, 12px cards.
  */
@@ -26,6 +26,8 @@ const config: Config = {
       base: ["1.125rem", { lineHeight: "1.625rem" }],     // 18px
       lg: ["1.5rem", { lineHeight: "2rem" }],             // 24px
       xl: ["2rem", { lineHeight: "2.5rem" }],             // 32px
+      "2xl": ["3rem", { lineHeight: "3.25rem" }],          // 48px — landing hero
+      "3xl": ["4rem", { lineHeight: "4.25rem" }],          // 64px — landing hero large
     },
     extend: {
       colors: {
