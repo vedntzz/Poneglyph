@@ -63,8 +63,13 @@
  * so that bg-background, bg-card, text-foreground etc. render
  * in the warm palette instead of dark zinc.
  */
+/*
+ * Warm-light CSS variable overrides — scoped to .warm-engine.
+ *
+ * IMPORTANT: flat selectors only — no & nesting. Tailwind's PostCSS
+ * pipeline does not compile native CSS nesting by default.
+ */
 .warm-engine {
-  /* ── Override CSS variables for warm-light palette ── */
   --background: 60 9% 97.6%;       /* #FAFAF7 */
   --foreground: 120 7% 10.6%;      /* #1A1D1A */
   --card: 0 0% 100%;               /* #FFFFFF */
@@ -84,68 +89,64 @@
   --border: 43 10% 88.6%;          /* #E7E5DF */
   --input: 43 10% 88.6%;
   --ring: 142 69% 29.4%;
+}
 
-  /* ── Strip standalone-page chrome from embedded /demo ── */
+/* ── Strip standalone-page chrome from embedded /demo ──
+   The demo page's outermost div has h-screen + bg-background.
+   Remove both so it sits flat inside /app's layout. */
+.warm-engine > div {
+  height: 800px !important;
+  background: transparent !important;
+}
 
-  /* Remove the demo page's full-height dark container. */
-  & > div {
-    height: 800px;
-    background: transparent;
-  }
+/* Hide the "Poneglyph · Multi-agent institutional memory" header bar.
+   Redundant inside /app where the top nav already exists. */
+.warm-engine > div > header {
+  display: none !important;
+}
 
-  /* Hide the "Poneglyph · Multi-agent institutional memory" header bar —
-     redundant inside /app where the top nav already exists. */
-  & > div > header {
-    display: none;
-  }
+/* Replace hardcoded dark zinc borders with warm hairline. */
+.warm-engine [class*="border-zinc"] {
+  border-color: #E7E5DF !important;
+}
 
-  /* Replace hardcoded dark zinc borders with the warm hairline color
-     so panel dividers match the rest of /app. */
-  & [class*="border-zinc"] {
-    border-color: #E7E5DF;
-  }
+/* Override hardcoded dark text colors for legibility on light bg. */
+.warm-engine [class*="text-zinc-100"] { color: #1A1D1A !important; }
+.warm-engine [class*="text-zinc-300"] { color: #1A1D1A !important; }
+.warm-engine [class*="text-zinc-400"] { color: #5C5F5A !important; }
+.warm-engine [class*="text-zinc-500"] { color: #5C5F5A !important; }
+.warm-engine [class*="text-zinc-600"] { color: #8B8E89 !important; }
 
-  /* Override hardcoded dark text colors from /demo components
-     so labels and counters are legible on light backgrounds. */
-  & [class*="text-zinc-100"] { color: #1A1D1A; }
-  & [class*="text-zinc-300"] { color: #1A1D1A; }
-  & [class*="text-zinc-400"] { color: #5C5F5A; }
-  & [class*="text-zinc-500"] { color: #5C5F5A; }
-  & [class*="text-zinc-600"] { color: #8B8E89; }
+/* ── Agent card layout fixes for embedded width ── */
 
-  /* ── Agent card layout fixes for embedded width ── */
+/* Force 3-column grid to use minmax(0, 1fr) so children
+   can't force columns wider than their fair share. */
+.warm-engine .grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
 
-  /* Force the 3-column grid to use minmax(0, 1fr) so children
-     can't force columns wider than their fair share. */
-  & .grid-cols-3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+/* Restyle agent cards: warm surface, hairline border, no truncation. */
+.warm-engine [data-agent-card] {
+  background: #FFFFFF !important;
+  border: 0.5px solid #E7E5DF !important;
+  border-radius: 8px !important;
+  padding: 14px !important;
+  min-height: 100px;
+  animation: none !important;
+}
 
-  /* Restyle agent cards: warm surface, hairline border, more padding,
-     and stack name/status vertically so nothing truncates. */
-  & [data-agent-card] {
-    background: #FFFFFF;
-    border: 0.5px solid #E7E5DF;
-    border-radius: 8px;
-    padding: 14px;
-    min-height: 100px;
-    /* Disable the dark-theme border-pulse animation. */
-    animation: none;
-  }
+/* Stack the header row (name + status) vertically. The original
+   dark layout puts them side-by-side, but the embedded column is
+   too narrow — names truncate to "Scou…", "Archiv…". */
+.warm-engine [data-agent-card] > div:first-child {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+}
 
-  /* Stack the header row (name + status) vertically. In the original
-     dark layout these sit side-by-side, but the embedded column is
-     too narrow for that without truncation. */
-  & [data-agent-card] > div:first-child {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  /* Token bar track: light gray instead of dark zinc-800. */
-  & [data-agent-card] [class*="bg-zinc-800"] {
-    background: #E7E5DF;
-  }
+/* Token bar track: light gray instead of dark zinc-800. */
+.warm-engine [data-agent-card] [class*="bg-zinc-800"] {
+  background: #E7E5DF !important;
 }
 
 /* Scan line effect for documents being processed by Scout.
