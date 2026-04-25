@@ -112,6 +112,40 @@
   & [class*="text-zinc-400"] { color: #5C5F5A; }
   & [class*="text-zinc-500"] { color: #5C5F5A; }
   & [class*="text-zinc-600"] { color: #8B8E89; }
+
+  /* ── Agent card layout fixes for embedded width ── */
+
+  /* Force the 3-column grid to use minmax(0, 1fr) so children
+     can't force columns wider than their fair share. */
+  & .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Restyle agent cards: warm surface, hairline border, more padding,
+     and stack name/status vertically so nothing truncates. */
+  & [data-agent-card] {
+    background: #FFFFFF;
+    border: 0.5px solid #E7E5DF;
+    border-radius: 8px;
+    padding: 14px;
+    min-height: 100px;
+    /* Disable the dark-theme border-pulse animation. */
+    animation: none;
+  }
+
+  /* Stack the header row (name + status) vertically. In the original
+     dark layout these sit side-by-side, but the embedded column is
+     too narrow for that without truncation. */
+  & [data-agent-card] > div:first-child {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* Token bar track: light gray instead of dark zinc-800. */
+  & [data-agent-card] [class*="bg-zinc-800"] {
+    background: #E7E5DF;
+  }
 }
 
 /* Scan line effect for documents being processed by Scout.
