@@ -961,6 +961,103 @@ def _serialize_sse_event(event: ProgressEvent) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
+# Briefing endpoint — pre-meeting preparation
+# ─────────────────────────────────────────────────────────────
+
+
+class BriefingRequest(BaseModel):
+    """Request body for the briefing generation endpoint."""
+
+    project_id: str = Field(..., min_length=1, description="Project slug.")
+    stakeholder: str = Field(
+        ..., min_length=1, description="Who the meeting is with, e.g. 'World Bank'."
+    )
+    meeting_context: str | None = Field(
+        default=None, description="Optional free-text about the meeting topic."
+    )
+
+
+class BriefingItemResponse(BaseModel):
+    """A single recommendation in the briefing response."""
+
+    text: str
+    citations: list[str]
+    rationale: str
+
+
+class BriefingResponse(BaseModel):
+    """Response from the briefing generation endpoint."""
+
+    project_id: str
+    stakeholder: str
+    meeting_context: str | None
+    project_summary: str
+    push_for: list[BriefingItemResponse]
+    push_back_on_us: list[BriefingItemResponse]
+    do_not_bring_up: list[BriefingItemResponse]
+    closing_note: str
+
+
+@app.post("/api/briefing/generate", response_model=BriefingResponse)
+def briefing_generate(request: BriefingRequest) -> BriefingResponse:
+    """Generate a pre-meeting briefing grounded in the project binder.
+
+    The Briefing agent reads evidence, meetings, and commitments on demand,
+    then produces tactical recommendations — each citing specific IDs from
+    the binder. This is not a status report; it's a preparation sheet.
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found.",
+        )
+
+    try:
+        from agents.briefing import BriefingAgent
+
+        agent = BriefingAgent(memory=_memory)
+        result = agent.generate(
+            project_id=request.project_id,
+            stakeholder=request.stakeholder,
+            meeting_context=request.meeting_context,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Briefing API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return BriefingResponse(
+        project_id=request.project_id,
+        stakeholder=result.stakeholder,
+        meeting_context=result.meeting_context,
+        project_summary=result.project_summary,
+        push_for=[
+            BriefingItemResponse(
+                text=item.text, citations=item.citations, rationale=item.rationale
+            )
+            for item in result.push_for
+        ],
+        push_back_on_us=[
+            BriefingItemResponse(
+                text=item.text, citations=item.citations, rationale=item.rationale
+            )
+            for item in result.push_back_on_us
+        ],
+        do_not_bring_up=[
+            BriefingItemResponse(
+                text=item.text, citations=item.citations, rationale=item.rationale
+            )
+            for item in result.do_not_bring_up
+        ],
+        closing_note=result.closing_note,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
 # Canonical demo endpoints
 # ─────────────────────────────────────────────────────────────
 
