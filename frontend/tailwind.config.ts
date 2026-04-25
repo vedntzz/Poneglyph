@@ -1,12 +1,15 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Design tokens — locked for Session 008.
+ * Design tokens.
+ *
+ * Two palettes coexist:
+ * 1. Dark (CSS-variable-based) — powers /demo dashboard and shadcn/ui components.
+ * 2. Warm-light (direct hex) — powers the homepage at /. Named tokens below.
  *
  * Font sizes: 11 / 13 / 15 / 18 / 24 / 32 px — strict scale.
  * Spacing: Tailwind default 4px grid (1 = 4px).
  * Radius: 4px small, 6px standard, 12px cards.
- * Shadows: none (dark theme uses border for separation).
  */
 const config: Config = {
   darkMode: ["class"],
@@ -26,6 +29,7 @@ const config: Config = {
     },
     extend: {
       colors: {
+        /* ── Dark palette (CSS-variable-based, powers /demo + shadcn) ── */
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {
@@ -59,6 +63,19 @@ const config: Config = {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+
+        /* ── Warm-light palette (direct hex, powers homepage at /) ── */
+        canvas: "#FAFAF7",
+        surface: "#FFFFFF",
+        hairline: "#E7E5DF",
+        "text-primary": "#1A1D1A",
+        "text-secondary": "#5C5F5A",
+        "text-tertiary": "#8B8E89",
+        "accent-forest": { DEFAULT: "#15803D", hover: "#166534" },
+        "accent-amber": "#B45309",
+        "accent-critical": "#991B1B",
+        "hover-warm": "#F4F2EC",
+        "highlight-mint": "#ECFDF5",
       },
       borderRadius: {
         lg: "0.75rem",   // 12px — cards
