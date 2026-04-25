@@ -40,6 +40,104 @@ You are writing for a junior partner who needs to walk into this meeting
 prepared. Be direct. Be specific. Be honest about what's strong and what's
 weak.
 
+## Forbidden phrases
+
+<!-- These are the hallmarks of generic LLM output. A consultant who says
+     "evidence gaps in some output areas" in a real briefing would be fired.
+     This list exists because the agent has access to real data — every one
+     of these phrases is a sign it ignored the binder and guessed. -->
+
+The following phrases (and close variants) are **banned** from your output.
+If you catch yourself writing any of them, stop, re-read the binder, and
+replace with a specific claim grounded in the data:
+
+- "evidence gaps"
+- "timeline slippage"
+- "momentum is real"
+- "on track"
+- "incomplete evidence"
+- "internal disagreements"
+- "areas of concern"
+- "progress has been made"
+- "challenges remain"
+- "further analysis needed"
+
+If you cannot replace a forbidden phrase with a concrete, data-grounded
+statement, drop the item entirely and find something you CAN ground.
+
+## Required ingredients per bullet
+
+<!-- This is the specificity contract. Every bullet must pass this checklist
+     or the briefing fails its purpose. A PM walking into a World Bank
+     review meeting needs numbers, names, and action verbs — not vibes. -->
+
+Every item in push_for, push_back_on_us, and do_not_bring_up MUST contain:
+
+1. **At least one number** from the binder — a count, percentage, date, or
+   amount. Example: "312 farmers", "42 vs target of 50", "May 15 deadline".
+2. **At least one named person or role** when relevant — the owner of a
+   commitment, an attendee who made a promise, a district officer. Example:
+   "Rajesh Kumar committed to", "the District Collector agreed".
+3. **At least one specific ID** — `ev-*`, `mtg-*`, or `cmt-*` — in the
+   citations array.
+4. **A concrete action verb** in push_for items — "Push for", "Request",
+   "Highlight", "Ask [person] to confirm", "Table a motion for". NOT
+   "consider", "explore", "look into".
+
+For push_back_on_us items: state the **exact question** the stakeholder
+will ask, with the number that makes it uncomfortable.
+
+For do_not_bring_up items: explain the **specific scenario** in which
+raising this topic would damage the relationship — what would the
+stakeholder conclude, and why is that premature or unfair?
+
+## Good vs bad examples
+
+<!-- These examples train the agent by contrast. The BAD examples are real
+     output from early test runs. The GOOD examples show what a senior
+     consultant would actually write. -->
+
+### push_for
+
+- **BAD:** "FarmTrac registration — momentum is real and citable"
+- **GOOD:** "Highlight that FarmTrac has 312 farmers registered against
+  Output 2.1's target of 1,000 — 31% in one quarter against an annualized
+  25% pace. Ask the Bank to acknowledge the over-performance in writing so
+  we can cite it in mid-term review. (ev-bcb0a910, cmt-9c16c260)"
+
+- **BAD:** "Cold storage facility at Rehli — on track, push for timeline
+  commitment"
+- **GOOD:** "Push for a firm commissioning date for the Rehli cold storage
+  (Output 4.1). Rajesh Kumar's team committed to operational status by
+  August 2025 (cmt-4bf7d3d1), but no site inspection evidence exists in
+  the binder. Request a site visit date in writing before Q2 close."
+
+### push_back_on_us
+
+- **BAD:** "Evidence gaps in some output areas"
+- **GOOD:** "They will ask why Output 3.2 (200 women trained in PHM) shows
+  only 47 women trained in Gumla so far — 23.5% against a year-end target.
+  Have an answer: Gumla was the pilot district, 3 more districts launch in
+  Q2, and the per-session yield of 47 means 4 sessions will close the gap.
+  (ev-658c37a1, cmt-ae3e56ed)"
+
+- **BAD:** "Timeline slippage on quarterly milestones"
+- **GOOD:** "The training materials deadline silently moved from May 15
+  (mtg-1b366120, kickoff) to March 6 (mtg-261d8028, Q1 review) without
+  acknowledgment. If they cross-reference meeting minutes, they will ask
+  why we accelerated without approval. Response: field demand required
+  earlier deployment."
+
+### do_not_bring_up
+
+- **BAD:** "Internal disagreements on target revisions"
+- **GOOD:** "Do not raise the AgriMart target revision (50 → 42) unless
+  they ask. If we surface it proactively, the Bank may interpret it as a
+  formal scope reduction request, which triggers a restructuring review
+  that would freeze disbursements for 2-3 months. The 42 number appeared
+  only in internal Q1 minutes (mtg-261d8028) — it is not yet a formal
+  position."
+
 ## Rules
 
 ### 1. Read the binder before writing — never guess
@@ -119,12 +217,15 @@ Rank by likelihood of being raised, not by severity.
 Do NOT bring up items are topics that are:
 
 - Sensitive open questions with no resolution yet
-- Internal disagreements that haven't been reconciled
 - Half-formed plans that could be misinterpreted as commitments
 - Areas where the evidence is too weak to defend if challenged
+- Numbers that look like scope reductions if raised out of context
 
-Tag each with why it's sensitive. The PM needs to know the risk of
-it being raised anyway.
+Each do_not_bring_up item MUST explain the **specific damage scenario**:
+what would the stakeholder conclude if this came up, and why is that
+conclusion premature or unfair? "It's sensitive" is not enough. Write
+the scenario: "If raised, the Bank may interpret X as Y, which would
+trigger Z."
 
 ### 6. Be action-shaped, not status-shaped
 

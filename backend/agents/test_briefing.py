@@ -174,19 +174,31 @@ def test_briefing_structure_and_content() -> None:
 
         # ─── AgriMart drift assertion ───────────────────────────
 
-        # The AgriMart 50→42 walk-back should appear somewhere in
-        # push_back_on_us. Check all push_back items' text + rationale.
+        # The AgriMart 50→42 walk-back should appear somewhere in the
+        # briefing — typically in push_back_on_us or do_not_bring_up.
+        # After prompt tightening, the agent makes a tactical choice:
+        # sometimes it treats the 42-vs-50 gap as something the Bank
+        # will raise (push_back), sometimes as something to not
+        # volunteer (do_not_bring_up). Both are valid — the question
+        # is whether the drift is surfaced at all.
         agrimart_found = False
-        for item in briefing.push_back_on_us:
-            combined = f"{item.text} {item.rationale}"
-            if _item_references_agrimart(combined):
-                agrimart_found = True
-                print(f"\n  AgriMart drift found in push_back: {item.text[:80]}")
+        agrimart_section = None
+        for section_name, items in [
+            ("push_back_on_us", briefing.push_back_on_us),
+            ("do_not_bring_up", briefing.do_not_bring_up),
+        ]:
+            for item in items:
+                combined = f"{item.text} {item.rationale}"
+                if _item_references_agrimart(combined):
+                    agrimart_found = True
+                    agrimart_section = section_name
+                    print(f"\n  AgriMart drift found in {section_name}: {item.text[:80]}")
+                    break
+            if agrimart_found:
                 break
 
-        # Don't assert here — we'll check across variance runs
         if not agrimart_found:
-            print("\n  WARNING: AgriMart drift NOT found in push_back_on_us")
+            print("\n  WARNING: AgriMart drift NOT found in push_back or do_not_bring_up")
 
         print("\n  PASSED: Structure, citations, and specificity verified")
         return briefing, agrimart_found
