@@ -1202,10 +1202,11 @@ function EngineSection({
           >
             {/*
              * warm-engine class overrides CSS variables so shadcn
-             * components inside the demo page render in the warm palette
-             * instead of dark zinc. See globals.css.
+             * components render in the warm palette, and strips the
+             * demo page's standalone chrome (header bar, h-screen,
+             * dark background). See globals.css.
              */}
-            <div className="warm-engine rounded-xl border border-hairline [&>div]:h-[800px] [&>div]:rounded-xl [&>div]:border-0">
+            <div className="warm-engine">
               <EngineDashboard />
             </div>
           </motion.div>
