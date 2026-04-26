@@ -760,6 +760,8 @@ function DriftSection({ driftItems }: { driftItems: DriftItem[] }) {
 }
 
 function DriftCard({ row }: { row: DriftItem }) {
+  const [expanded, setExpanded] = useState(false);
+
   const severityBadge = {
     high: "bg-red-100 text-red-700",
     medium: "bg-amber-100 text-amber-700",
@@ -772,45 +774,54 @@ function DriftCard({ row }: { row: DriftItem }) {
     low: "#15803D",
   }[row.severity];
 
+  const truncate = (s: string, max: number) =>
+    s.length > max ? s.slice(0, max) + "\u2026" : s;
+
+  const hasLongQuotes =
+    row.values[0]?.length > 30 || row.values[1]?.length > 30;
+
   return (
     <div
       className="rounded-xl bg-surface p-4"
       style={{ border: "0.5px solid #E7E5DF" }}
     >
-      {/* Top row: label + severity badge + delta */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-text-primary">
+      {/* 1. Header: topic + severity badge + short delta */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium text-text-primary">
             {row.topic}
           </span>
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${severityBadge}`}
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${severityBadge}`}
           >
             {row.severity}
           </span>
         </div>
-        <span className="font-mono text-xs font-semibold text-text-primary">
-          {row.delta}
+        <span className="shrink-0 font-mono text-xs font-semibold text-text-primary">
+          {truncate(row.delta, 30)}
         </span>
       </div>
 
-      {/* Description */}
-      <p className="mt-1.5 text-[13px] leading-snug" style={{ color: "#5C5F5A" }}>
+      {/* 2. Description (max 2 lines) */}
+      <p
+        className="mt-1.5 line-clamp-2 text-[13px]"
+        style={{ color: "#5C5F5A", lineHeight: 1.5 }}
+      >
         {row.note}
       </p>
 
-      {/* SVG timeline — 2 nodes, line bends at second node */}
+      {/* 3. SVG timeline — 2 nodes, line bends at second node */}
       {row.meetings.length >= 2 && (
         <div className="mt-3">
           <svg
             width="100%"
-            height="56"
-            viewBox="0 0 400 56"
+            height="72"
+            viewBox="0 0 400 72"
             preserveAspectRatio="xMidYMid meet"
           >
-            {/* Connector: straight from node 1, bend down to node 2 */}
+            {/* Connector: dashed line bending down to node 2 */}
             <path
-              d="M 60 28 L 200 28 L 340 34"
+              d="M 60 32 L 200 32 L 340 38"
               fill="none"
               stroke={lineColor}
               strokeWidth="1.5"
@@ -818,28 +829,69 @@ function DriftCard({ row }: { row: DriftItem }) {
             />
 
             {/* Node 1 */}
-            <circle cx="60" cy="28" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
-            <text x="60" y="12" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
+            <circle cx="60" cy="32" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
+            <text x="60" y="14" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
               {row.meetings[0]}
             </text>
-            <text x="60" y="48" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
-              {row.values[0]}
+            <text x="60" y="56" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
+              {truncate(row.values[0], 28)}
             </text>
 
-            {/* Node 2 (shifted down slightly to show drift) */}
-            <circle cx="340" cy="34" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
-            <text x="340" y="12" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
+            {/* Node 2 (shifted down to show drift) */}
+            <circle cx="340" cy="38" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
+            <text x="340" y="14" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
               {row.meetings[1]}
             </text>
-            <text x="340" y="52" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
-              {row.values[1]}
-            </text>
-
-            {/* Midpoint change label */}
-            <text x="200" y="22" textAnchor="middle" fontSize="9" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
-              {row.values[0]} → {row.values[1]}
+            <text x="340" y="62" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
+              {truncate(row.values[1], 28)}
             </text>
           </svg>
+        </div>
+      )}
+
+      {/* 4. Citation chips + expand link */}
+      <div className="mt-2 flex items-center justify-between">
+        <div className="flex flex-wrap gap-1.5">
+          {row.meetings.map((m) => (
+            <span
+              key={m}
+              className="rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+            >
+              {m}
+            </span>
+          ))}
+        </div>
+        {hasLongQuotes && (
+          <button
+            onClick={() => setExpanded((prev) => !prev)}
+            className="text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
+          >
+            {expanded ? "Hide quotes" : "View source quotes"}
+          </button>
+        )}
+      </div>
+
+      {/* Expandable source quotes */}
+      {expanded && (
+        <div className="mt-3 space-y-2 border-t border-hairline pt-3">
+          <div className="rounded-lg bg-canvas p-3">
+            <p className="mb-1 text-[10px] font-medium text-text-tertiary">
+              {row.meetings[0]}
+            </p>
+            <p className="text-2xs text-text-secondary" style={{ lineHeight: 1.5 }}>
+              &ldquo;{row.values[0]}&rdquo;
+            </p>
+          </div>
+          {row.meetings[1] && (
+            <div className="rounded-lg bg-canvas p-3">
+              <p className="mb-1 text-[10px] font-medium text-text-tertiary">
+                {row.meetings[1]}
+              </p>
+              <p className="text-2xs text-text-secondary" style={{ lineHeight: 1.5 }}>
+                &ldquo;{row.values[1]}&rdquo;
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
