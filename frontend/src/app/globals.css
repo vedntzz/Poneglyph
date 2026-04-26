@@ -99,9 +99,14 @@
   background: transparent !important;
 }
 
-/* Hide the "Poneglyph · Multi-agent institutional memory" header bar.
-   Redundant inside /app where the top nav already exists. */
+/* Hide the branding text ("Poneglyph · Multi-agent institutional memory")
+   but keep the Run button visible. The header's first two children are
+   the branding div and the live-counters div; the button is in the third. */
 .warm-engine > div > header {
+  border-color: #E7E5DF !important;
+  background: transparent !important;
+}
+.warm-engine > div > header > div:first-child {
   display: none !important;
 }
 
