@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 /** Tabs shown in the top nav. All scroll to anchors on /app. */
 const TABS = [
@@ -55,15 +56,20 @@ export function AppNav({ activeSection, onCommandPalette }: AppNavProps) {
     <nav className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-hairline bg-surface px-5">
       {/* ── Left: logo + wordmark + project pill ── */}
       <div className="flex items-center gap-3">
-        {/* Green square logo with white P */}
-        <div className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] bg-accent-forest">
-          <span className="text-[12px] font-bold leading-none text-white">
-            P
+        <Link
+          href="/"
+          className="flex items-center gap-3 transition-opacity hover:opacity-80"
+        >
+          {/* Green square logo with white P */}
+          <div className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] bg-accent-forest">
+            <span className="text-[12px] font-bold leading-none text-white">
+              P
+            </span>
+          </div>
+          <span className="text-sm font-semibold text-text-primary">
+            Poneglyph
           </span>
-        </div>
-        <span className="text-sm font-semibold text-text-primary">
-          Poneglyph
-        </span>
+        </Link>
         <span className="rounded-full border border-hairline bg-canvas px-2.5 py-0.5 text-2xs text-text-secondary">
           MP-FPC
         </span>
