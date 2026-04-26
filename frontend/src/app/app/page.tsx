@@ -115,7 +115,6 @@ const HERO_STATS = {
   verifiedPercent: 88,
   evidenceItems: 18,
   commitments: 19,
-  driftFlags: 3,
   meetings: 2,
 } as const;
 
@@ -358,7 +357,7 @@ export default function HomePage() {
 
         {/* Section 2: Hero stat block */}
         <section className="mb-10">
-          <HeroStatBlock onBriefMe={() => setBriefingModalOpen(true)} />
+          <HeroStatBlock onBriefMe={() => setBriefingModalOpen(true)} driftFlags={driftItems.length} />
         </section>
 
         {/* Section 3: Briefing card */}
@@ -434,8 +433,8 @@ function PageHeader() {
 // Section 2: Hero stat block with circular progress arc
 // ─────────────────────────────────────────────────────────────
 
-function HeroStatBlock({ onBriefMe }: { onBriefMe: () => void }) {
-  const { verifiedPercent, evidenceItems, commitments, driftFlags, meetings } =
+function HeroStatBlock({ onBriefMe, driftFlags }: { onBriefMe: () => void; driftFlags: number }) {
+  const { verifiedPercent, evidenceItems, commitments, meetings } =
     HERO_STATS;
 
   /* SVG arc math for the circular progress indicator.
