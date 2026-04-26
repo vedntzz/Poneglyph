@@ -49,8 +49,9 @@ MODEL = "claude-opus-4-7"
 MAX_OUTPUT_TOKENS = 16_000
 
 # Maximum tool-use rounds before we force a final answer.
-# Prevents runaway loops on ambiguous queries.
-MAX_TOOL_ROUNDS = 10
+# Lowered from 10 → 6: agents typically converge in 2-3 rounds,
+# and the tail rounds add latency without improving quality.
+MAX_TOOL_ROUNDS = 6
 
 
 # ─────────────────────────────────────────────────────────────

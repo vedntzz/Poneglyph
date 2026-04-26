@@ -45,7 +45,8 @@ MODEL = "claude-opus-4-7"
 MAX_OUTPUT_TOKENS = 16_000
 
 # Maximum tool-use rounds for reading memory before writing.
-MAX_TOOL_ROUNDS = 8
+# Lowered from 8 → 5: Drafter typically reads 2-3 files then drafts.
+MAX_TOOL_ROUNDS = 5
 
 # Supported donor formats. World Bank is the primary; others are stubs.
 SUPPORTED_DONOR_FORMATS = {"world_bank", "giz", "nabard"}
