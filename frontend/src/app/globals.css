@@ -56,3 +56,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Scan line effect for documents being processed by Scout.
+   A 1px emerald line travels top-to-bottom on the thumbnail. */
+@keyframes scan-line {
+  0% { top: 0%; }
+  50% { top: 100%; }
+  100% { top: 0%; }
+}
