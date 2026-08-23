@@ -1,0 +1,52 @@
+[project]
+name = "poneglyph-backend"
+version = "0.1.0"
+description = "Poneglyph backend — multi-agent institutional memory system"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "anthropic>=0.52.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+# ─────────────────────────────────────────────────────────────
+# Ruff — linting + formatting
+# Matches CLAUDE.md Code Quality Standards
+# ─────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "ANN", "TCH", "RUF"]
+ignore = [
+    "ANN101",  # missing type for `self` — redundant
+    "ANN102",  # missing type for `cls` — redundant
+    "E501",    # line too long — ruff format handles this
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/test_*.py" = ["ANN"]
+"**/*_test.py" = ["ANN"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ─────────────────────────────────────────────────────────────
+# Mypy — strict type checking
+# ─────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["anthropic.*"]
+ignore_missing_imports = false
