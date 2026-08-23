@@ -242,8 +242,12 @@ class Orchestrator:
                     total_evidence += len(evidence_list)
 
                     # Real token tracking from Scout's response.usage.
-                    # Scout accumulates usage across all calls in a single run().
-                    self._tokens_per_agent["scout"] = scout.total_tokens_used
+                    # Scout resets total_tokens_used at the start of each run(),
+                    # so we must accumulate across the image loop ourselves.
+                    self._tokens_per_agent["scout"] = (
+                        self._tokens_per_agent.get("scout", 0)
+                        + scout.total_tokens_used
+                    )
 
                     # Emit evidence data for the frontend output viewer.
                     # Includes bounding boxes so ImageWithBoxes can render them.
@@ -308,8 +312,12 @@ class Orchestrator:
                     total_commitments += len(record.commitments)
 
                     # Real token tracking from Scribe's response.usage.
-                    # Scribe accumulates usage across all calls in a single run().
-                    self._tokens_per_agent["scribe"] = scribe.total_tokens_used
+                    # Scribe resets total_tokens_used at the start of each run(),
+                    # so we must accumulate across the transcript loop ourselves.
+                    self._tokens_per_agent["scribe"] = (
+                        self._tokens_per_agent.get("scribe", 0)
+                        + scribe.total_tokens_used
+                    )
 
                     # Memory write events for the feed
                     self._emit_data("memory_write", {
@@ -606,6 +614,46 @@ class Orchestrator:
         except Exception as e:
             logger.error("Query phase failed: %s", e)
             results["query"] = {"error": str(e)}
+
+        # Step 3b: Contradiction detection
+        # Run after Archivist has processed meetings+commitments so there's
+        # data to compare. Results feed the frontend's Drift Timeline.
+        try:
+            from agents.archivist import ArchivistAgent
+            archivist = ArchivistAgent(memory=self.memory)
+
+            self._emit(ProgressEvent(
+                agent_name="archivist",
+                status=AgentStatus.RUNNING,
+                current_action="Checking for commitment drift across meetings",
+                tokens_used=self._tokens_per_agent.get("archivist", 0),
+                budget_total=AGENT_BUDGETS["archivist"],
+                budget_remaining=max(0, AGENT_BUDGETS["archivist"] - self._tokens_per_agent.get("archivist", 0)),
+            ))
+
+            contradictions = archivist.detect_contradictions(project_id=project_id)
+            self._tokens_per_agent["archivist"] = (
+                self._tokens_per_agent.get("archivist", 0) + archivist.total_tokens_used
+            )
+
+            if contradictions:
+                self._emit_data("contradictions", {
+                    "items": [
+                        {
+                            "description": c.description,
+                            "earlier_source": c.earlier_source,
+                            "later_source": c.later_source,
+                            "earlier_claim": c.earlier_claim,
+                            "later_claim": c.later_claim,
+                            "severity": c.severity,
+                        }
+                        for c in contradictions
+                    ],
+                })
+                results["contradictions"] = [c.model_dump() for c in contradictions]
+
+        except Exception as e:
+            logger.warning("Contradiction detection failed (non-fatal): %s", e)
 
         # Step 4-5: Report (Drafter → Auditor)
         self._emit(ProgressEvent(
