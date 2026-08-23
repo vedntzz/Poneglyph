@@ -52,6 +52,14 @@ MODEL = "claude-opus-4-7"
 
 MAX_OUTPUT_TOKENS = 16_000
 
+# HACKATHON COMPROMISE: default True so the demo always exercises Opus 4.7's
+# independent vision re-verification — the self-verification capability we're
+# showcasing. When True, every claim citing image-backed evidence triggers an
+# independent vision call against the original image, regardless of Scout's
+# confidence level. When False (production mode), only MEDIUM/LOW confidence
+# claims get the vision call (~80% savings). See sessions/005-drafter-auditor.md.
+AUDITOR_ALWAYS_VISION_CHECK: bool = True
+
 
 # ─────────────────────────────────────────────────────────────
 # Response models
@@ -290,15 +298,17 @@ class AuditorAgent:
         project_id: str,
         claims: list[Claim],
     ) -> dict[int, str]:
-        """Run independent vision verification for claims citing MEDIUM/LOW image evidence.
+        """Run independent vision verification for claims citing image evidence.
 
-        For HIGH confidence image evidence, we trust Scout's raw_text. For
-        MEDIUM/LOW, we load the full original image and ask Opus 4.7 to
-        independently read what it says. This is NOT Scout checking Scout —
-        it's Auditor forming its own judgment.
+        Behavior depends on AUDITOR_ALWAYS_VISION_CHECK:
+        - True (hackathon default): every claim citing image-backed evidence
+          gets an independent vision call, regardless of confidence. This
+          demonstrates the self-verification capability in every demo run.
+        - False (production mode): only MEDIUM/LOW confidence claims get the
+          vision call. HIGH confidence trusts Scout's raw_text (~80% savings).
 
-        Cost tradeoff: ~80% of claims skip this (HIGH confidence or non-image
-        sources). ~20% get the independent vision call where it matters most.
+        This is NOT Scout checking Scout — it's Auditor forming its own
+        judgment by independently reading the source document.
         See sessions/005-drafter-auditor.md.
 
         Args:
@@ -321,10 +331,17 @@ class AuditorAgent:
                 if evidence is None:
                     continue
 
-                should_vision_check = (
-                    evidence.source_file is not None
-                    and evidence.confidence in (Confidence.MEDIUM, Confidence.LOW)
-                )
+                if AUDITOR_ALWAYS_VISION_CHECK:
+                    # Demo mode: always re-verify image evidence to showcase
+                    # Opus 4.7's self-verification. See CAPABILITIES.md#self-verification.
+                    should_vision_check = evidence.source_file is not None
+                else:
+                    # Production mode: only re-verify MEDIUM/LOW confidence
+                    # to save ~80% on vision API costs.
+                    should_vision_check = (
+                        evidence.source_file is not None
+                        and evidence.confidence in (Confidence.MEDIUM, Confidence.LOW)
+                    )
 
                 if not should_vision_check:
                     continue
