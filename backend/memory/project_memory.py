@@ -136,8 +136,13 @@ class ProjectMemory:
             tests to use a temp directory.
     """
 
-    def __init__(self, data_dir: Optional[Path] = None) -> None:
-        self.data_dir = data_dir or DEFAULT_DATA_DIR
+    def __init__(self, data_dir: str | Path | None = None) -> None:
+        # Coerce to Path so downstream `/` operations always work,
+        # regardless of whether the caller passes a string or Path.
+        # The existing tests masked this by always passing Path objects
+        # (via tempfile.TemporaryDirectory). Caught during manual testing
+        # in Session 004. See sessions/004-scribe-archivist.md.
+        self.data_dir = Path(data_dir) if data_dir is not None else DEFAULT_DATA_DIR
 
     def _project_dir(self, project_id: str) -> Path:
         """Return the root directory for a project."""
