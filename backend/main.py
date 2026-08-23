@@ -7,15 +7,19 @@ stack round-trip before any real agent logic is added.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import queue
+import threading
 from pathlib import Path
 from typing import Any
 
 import anthropic
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.responses import StreamingResponse
 
 from agents.archivist import ArchivistAgent, AnswerWithCitations, Citation, Contradiction
 from agents.auditor import AuditorAgent, VerificationTag, VerifiedClaim, VerifiedSection
@@ -23,6 +27,7 @@ from agents.drafter import DrafterAgent, Claim, DraftSection
 from agents.scribe import ScribeAgent, MeetingRecord, ExtractedCommitment, Disagreement
 from agents.scout import ScoutAgent
 from memory.project_memory import ProjectMemory
+from orchestrator import Orchestrator, ProgressEvent
 
 logger = logging.getLogger(__name__)
 
@@ -792,4 +797,132 @@ def report_generate(request: DrafterRequest) -> VerifiedSectionResponse:
         ],
         rendered_markdown=verified.rendered_markdown,
         summary=verified.summary,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Orchestrator SSE streaming endpoint
+# ─────────────────────────────────────────────────────────────
+
+# Supported SSE actions — maps to Orchestrator methods
+SSE_ACTIONS = {"ingest", "query", "report", "full_demo"}
+
+# Default demo data paths — relative to repo root
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_IMAGES = [
+    str(_REPO_ROOT / "data" / "synthetic" / "form_english.png"),
+    str(_REPO_ROOT / "data" / "synthetic" / "form_hindi.png"),
+]
+_DEFAULT_TRANSCRIPTS = [
+    str(_REPO_ROOT / "data" / "synthetic" / "meetings" / "meeting_001.txt"),
+    str(_REPO_ROOT / "data" / "synthetic" / "meetings" / "meeting_002.txt"),
+]
+
+
+@app.get("/api/orchestrator/stream")
+def orchestrator_stream(
+    project_id: str = Query(..., description="Project slug."),
+    action: str = Query("full_demo", description="Action: ingest, query, report, full_demo."),
+) -> StreamingResponse:
+    """Stream orchestrator progress events via Server-Sent Events.
+
+    Runs the orchestrator in a background thread and yields progress
+    events as SSE data frames. The frontend connects with EventSource
+    and updates agent cards in real time.
+
+    Uses Opus 4.7 task budgets (beta header task-budgets-2026-03-13)
+    to give each agent a visible token countdown. This is the feature
+    nobody has shipped yet. See CAPABILITIES.md#task-budgets.
+    """
+    if action not in SSE_ACTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid action '{action}'. Must be one of: {SSE_ACTIONS}",
+        )
+
+    project_dir = _memory._project_dir(project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{project_id}' not found.",
+        )
+
+    # Thread-safe queue: orchestrator pushes events, SSE generator pulls them
+    event_queue: queue.Queue[ProgressEvent | None] = queue.Queue()
+
+    def on_progress(event: ProgressEvent) -> None:
+        """Callback: push event into the queue for SSE consumption."""
+        event_queue.put(event)
+
+    def run_orchestrator() -> None:
+        """Run the orchestrator in a background thread."""
+        try:
+            orch = Orchestrator(memory=_memory, on_progress=on_progress)
+
+            if action == "ingest":
+                orch.run_ingestion(
+                    project_id=project_id,
+                    image_paths=_DEFAULT_IMAGES,
+                    transcript_paths=_DEFAULT_TRANSCRIPTS,
+                )
+            elif action == "query":
+                orch.run_query(
+                    project_id=project_id,
+                    query="Where are we on the women's PHM training target?",
+                )
+            elif action == "report":
+                orch.run_report_section(
+                    project_id=project_id,
+                    section_name="Progress on Women's PHM Training",
+                    donor_format="world_bank",
+                )
+            elif action == "full_demo":
+                orch.run_full_demo(
+                    project_id=project_id,
+                    image_paths=_DEFAULT_IMAGES,
+                    transcript_paths=_DEFAULT_TRANSCRIPTS,
+                )
+        except Exception as e:
+            logger.error("Orchestrator thread failed: %s", e)
+            event_queue.put(ProgressEvent(
+                agent_name="orchestrator",
+                status="error",
+                current_action=f"Pipeline failed: {str(e)[:200]}",
+            ))
+        finally:
+            # Sentinel: None signals the generator to stop
+            event_queue.put(None)
+
+    def event_generator():
+        """Yield SSE-formatted events from the queue."""
+        # Start the orchestrator in a background thread
+        thread = threading.Thread(target=run_orchestrator, daemon=True)
+        thread.start()
+
+        while True:
+            # Block until an event arrives (timeout prevents hanging forever)
+            try:
+                event = event_queue.get(timeout=120)
+            except queue.Empty:
+                # Send a keepalive comment to prevent connection timeout
+                yield ": keepalive\n\n"
+                continue
+
+            if event is None:
+                # Sentinel — orchestrator is done
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                break
+
+            payload = event.to_dict()
+            payload["type"] = "progress"
+            yield f"data: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
