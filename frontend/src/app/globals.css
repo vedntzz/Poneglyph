@@ -64,6 +64,7 @@
  * in the warm palette instead of dark zinc.
  */
 .warm-engine {
+  /* ── Override CSS variables for warm-light palette ── */
   --background: 60 9% 97.6%;       /* #FAFAF7 */
   --foreground: 120 7% 10.6%;      /* #1A1D1A */
   --card: 0 0% 100%;               /* #FFFFFF */
@@ -83,6 +84,34 @@
   --border: 43 10% 88.6%;          /* #E7E5DF */
   --input: 43 10% 88.6%;
   --ring: 142 69% 29.4%;
+
+  /* ── Strip standalone-page chrome from embedded /demo ── */
+
+  /* Remove the demo page's full-height dark container. */
+  & > div {
+    height: 800px;
+    background: transparent;
+  }
+
+  /* Hide the "Poneglyph · Multi-agent institutional memory" header bar —
+     redundant inside /app where the top nav already exists. */
+  & > div > header {
+    display: none;
+  }
+
+  /* Replace hardcoded dark zinc borders with the warm hairline color
+     so panel dividers match the rest of /app. */
+  & [class*="border-zinc"] {
+    border-color: #E7E5DF;
+  }
+
+  /* Override hardcoded dark text colors from /demo components
+     so labels and counters are legible on light backgrounds. */
+  & [class*="text-zinc-100"] { color: #1A1D1A; }
+  & [class*="text-zinc-300"] { color: #1A1D1A; }
+  & [class*="text-zinc-400"] { color: #5C5F5A; }
+  & [class*="text-zinc-500"] { color: #5C5F5A; }
+  & [class*="text-zinc-600"] { color: #8B8E89; }
 }
 
 /* Scan line effect for documents being processed by Scout.
