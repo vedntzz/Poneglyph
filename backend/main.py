@@ -17,6 +17,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from agents.archivist import ArchivistAgent, AnswerWithCitations, Citation, Contradiction
+from agents.scribe import ScribeAgent, MeetingRecord, ExtractedCommitment, Disagreement
 from agents.scout import ScoutAgent
 from memory.project_memory import ProjectMemory
 
@@ -279,4 +281,263 @@ async def scout_extract(
         project_id=project_id,
         evidence_count=len(response_evidence),
         evidence=response_evidence,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Scribe endpoint
+# ─────────────────────────────────────────────────────────────
+
+class ScribeProcessRequest(BaseModel):
+    """Request body for the Scribe meeting processing endpoint."""
+
+    project_id: str = Field(
+        ...,
+        min_length=1,
+        description="Project slug, e.g. 'mp-fpc-2024'.",
+    )
+    transcript: str = Field(
+        ...,
+        min_length=1,
+        description="Full text of the meeting transcript.",
+    )
+
+
+class CommitmentResponse(BaseModel):
+    """A commitment extracted from the meeting."""
+
+    owner: str
+    description: str
+    due_date: str | None = None
+    logframe_indicator: str | None = None
+
+
+class DisagreementResponse(BaseModel):
+    """A disagreement detected in the meeting."""
+
+    parties: list[str]
+    topic: str
+    resolution: str | None = None
+
+
+class ScribeProcessResponse(BaseModel):
+    """Response from the Scribe meeting processing endpoint."""
+
+    project_id: str
+    date: str
+    attendees: list[str]
+    decisions: list[str]
+    commitments: list[CommitmentResponse]
+    open_questions: list[str]
+    disagreements: list[DisagreementResponse]
+    full_mom_markdown: str
+    notes: str | None = None
+
+
+@app.post("/api/scribe/process", response_model=ScribeProcessResponse)
+def scribe_process(request: ScribeProcessRequest) -> ScribeProcessResponse:
+    """Process a meeting transcript using the Scribe agent.
+
+    Extracts decisions, commitments, open questions, and disagreements.
+    Persists the meeting record and commitments to ProjectMemory.
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found. Create it first.",
+        )
+
+    try:
+        scribe = ScribeAgent(memory=_memory)
+        record = scribe.run(
+            project_id=request.project_id,
+            transcript=request.transcript,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Scribe API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return ScribeProcessResponse(
+        project_id=request.project_id,
+        date=record.date,
+        attendees=record.attendees,
+        decisions=record.decisions,
+        commitments=[
+            CommitmentResponse(
+                owner=c.owner,
+                description=c.description,
+                due_date=c.due_date,
+                logframe_indicator=c.logframe_indicator,
+            )
+            for c in record.commitments
+        ],
+        open_questions=record.open_questions,
+        disagreements=[
+            DisagreementResponse(
+                parties=d.parties,
+                topic=d.topic,
+                resolution=d.resolution,
+            )
+            for d in record.disagreements
+        ],
+        full_mom_markdown=record.full_mom_markdown,
+        notes=record.notes,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Archivist endpoints
+# ─────────────────────────────────────────────────────────────
+
+class ArchivistQueryRequest(BaseModel):
+    """Request body for the Archivist query endpoint."""
+
+    project_id: str = Field(
+        ...,
+        min_length=1,
+        description="Project slug.",
+    )
+    query: str = Field(
+        ...,
+        min_length=1,
+        description="Question about the project.",
+    )
+
+
+class CitationResponse(BaseModel):
+    """A citation to a file in the project binder."""
+
+    file_path: str
+    excerpt: str
+
+
+class ArchivistQueryResponse(BaseModel):
+    """Response from the Archivist query endpoint."""
+
+    project_id: str
+    query: str
+    answer: str
+    citations: list[CitationResponse]
+    gaps: list[str]
+
+
+@app.post("/api/archivist/query", response_model=ArchivistQueryResponse)
+def archivist_query(request: ArchivistQueryRequest) -> ArchivistQueryResponse:
+    """Ask a question about the project. Archivist reads memory files on demand.
+
+    Uses Opus 4.7's file-system-based persistent memory — the Archivist
+    reads specific files from the project binder using tool use, like a
+    consultant re-opening their notes. See CAPABILITIES.md#file-memory.
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found.",
+        )
+
+    try:
+        archivist = ArchivistAgent(memory=_memory)
+        result = archivist.answer_query(
+            project_id=request.project_id,
+            query=request.query,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Archivist API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return ArchivistQueryResponse(
+        project_id=request.project_id,
+        query=request.query,
+        answer=result.answer,
+        citations=[
+            CitationResponse(file_path=c.file_path, excerpt=c.excerpt)
+            for c in result.citations
+        ],
+        gaps=result.gaps,
+    )
+
+
+class ContradictionResponse(BaseModel):
+    """A contradiction detected in the project records."""
+
+    description: str
+    earlier_source: str
+    later_source: str
+    earlier_claim: str
+    later_claim: str
+    severity: str
+
+
+class ArchivistContradictionsResponse(BaseModel):
+    """Response from the Archivist contradiction detection endpoint."""
+
+    project_id: str
+    contradiction_count: int
+    contradictions: list[ContradictionResponse]
+
+
+class ArchivistContradictionsRequest(BaseModel):
+    """Request body for the Archivist contradiction detection endpoint."""
+
+    project_id: str = Field(
+        ...,
+        min_length=1,
+        description="Project slug.",
+    )
+
+
+@app.post("/api/archivist/contradictions", response_model=ArchivistContradictionsResponse)
+def archivist_contradictions(
+    request: ArchivistContradictionsRequest,
+) -> ArchivistContradictionsResponse:
+    """Detect contradictions across the project's commitments and meetings.
+
+    Uses Opus 4.7 with deep reasoning to identify cases where later
+    meetings implicitly walk back earlier commitments.
+    See CAPABILITIES.md#adaptive-thinking.
+    """
+    project_dir = _memory._project_dir(request.project_id)
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_id}' not found.",
+        )
+
+    try:
+        archivist = ArchivistAgent(memory=_memory)
+        contradictions = archivist.detect_contradictions(
+            project_id=request.project_id,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Archivist API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return ArchivistContradictionsResponse(
+        project_id=request.project_id,
+        contradiction_count=len(contradictions),
+        contradictions=[
+            ContradictionResponse(
+                description=c.description,
+                earlier_source=c.earlier_source,
+                later_source=c.later_source,
+                earlier_claim=c.earlier_claim,
+                later_claim=c.later_claim,
+                severity=c.severity,
+            )
+            for c in contradictions
+        ],
     )
