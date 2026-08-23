@@ -105,7 +105,7 @@
 
 | Hash | Message |
 |------|---------|
-| TBD | `feat(demo): add canonical demo mode with reset + 3rd synthetic form` |
+| `99cc92a` | `feat(demo): add canonical demo mode with reset + 3rd synthetic form` |
 
 ---
 
