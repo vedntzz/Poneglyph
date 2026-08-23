@@ -20,6 +20,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
+from starlette.staticfiles import StaticFiles
 
 from agents.archivist import ArchivistAgent, AnswerWithCitations, Citation, Contradiction
 from agents.auditor import AuditorAgent, VerificationTag, VerifiedClaim, VerifiedSection
@@ -45,6 +46,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve synthetic data images for the frontend output viewer.
+# Images are in /data/synthetic/ relative to repo root.
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "data" / "synthetic"
+app.mount("/static/synthetic", StaticFiles(directory=str(_STATIC_DIR)), name="synthetic")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -913,9 +919,7 @@ def orchestrator_stream(
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
 
-            payload = event.to_dict()
-            payload["type"] = "progress"
-            yield f"data: {json.dumps(payload)}\n\n"
+            yield _serialize_sse_event(event)
 
     return StreamingResponse(
         event_generator(),
@@ -926,6 +930,20 @@ def orchestrator_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _serialize_sse_event(event: ProgressEvent) -> str:
+    """Serialize a ProgressEvent (or data event) as an SSE data frame.
+
+    Data events carry a _data_payload dict with their own "type" field
+    (e.g. "evidence", "memory_write", "verified_section"). Regular
+    progress events get {"type": "progress", ...}.
+    """
+    if hasattr(event, "_data_payload"):
+        return f"data: {json.dumps(event._data_payload)}\n\n"
+    payload = event.to_dict()
+    payload["type"] = "progress"
+    return f"data: {json.dumps(payload)}\n\n"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1011,9 +1029,7 @@ def demo_stream() -> StreamingResponse:
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
 
-            payload = event.to_dict()
-            payload["type"] = "progress"
-            yield f"data: {json.dumps(payload)}\n\n"
+            yield _serialize_sse_event(event)
 
     return StreamingResponse(
         event_generator(),

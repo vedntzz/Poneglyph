@@ -115,6 +115,28 @@ class Orchestrator:
         """Emit a progress event via the callback."""
         self.on_progress(event)
 
+    def _emit_data(self, event_type: str, data: dict[str, Any]) -> None:
+        """Emit a typed data event for the frontend.
+
+        Unlike ProgressEvent (which tracks agent status/tokens), data events
+        carry actual outputs — evidence items, memory writes, verified claims.
+        The SSE generator serializes these with {"type": event_type, ...data}.
+        """
+        # Wrap as a ProgressEvent with a special sentinel status so the
+        # SSE generator can distinguish it. The to_dict() is overridden
+        # in the SSE layer to emit the raw data payload instead.
+        # HACKATHON COMPROMISE: reusing the callback/queue mechanism rather
+        # than creating a parallel event channel. Works because the SSE
+        # generator checks payload["type"] before deciding what to emit.
+        event = ProgressEvent(
+            agent_name="_data",
+            status=AgentStatus.RUNNING,
+            current_action=event_type,
+        )
+        # Stash the raw data dict on the event object for the SSE layer
+        event._data_payload = {"type": event_type, **data}  # type: ignore[attr-defined]
+        self.on_progress(event)
+
     def _emit_start(self, agent_name: str, action: str) -> None:
         """Emit a starting event for an agent."""
         budget = AGENT_BUDGETS.get(agent_name, 0)
@@ -223,6 +245,33 @@ class Orchestrator:
                     # Scout accumulates usage across all calls in a single run().
                     self._tokens_per_agent["scout"] = scout.total_tokens_used
 
+                    # Emit evidence data for the frontend output viewer.
+                    # Includes bounding boxes so ImageWithBoxes can render them.
+                    filename = Path(img_path).name
+                    self._emit_data("evidence", {
+                        "image_path": img_path,
+                        "image_filename": filename,
+                        "items": [
+                            {
+                                "id": ev.evidence_id,
+                                "summary": ev.summary,
+                                "raw_text": ev.raw_text or "",
+                                "confidence": ev.confidence.value if ev.confidence else "HIGH",
+                                "indicator": ev.logframe_indicator or "",
+                                "bounding_boxes": ev.bounding_boxes or [],
+                            }
+                            for ev in evidence_list
+                        ],
+                    })
+
+                    # Emit memory write events for the feed
+                    for ev in evidence_list:
+                        self._emit_data("memory_write", {
+                            "agent": "scout",
+                            "file_path": f"evidence/{ev.evidence_id}.md",
+                            "summary": ev.summary,
+                        })
+
                 except Exception as e:
                     logger.error("Scout failed on %s: %s", img_path, e)
                     self._emit_error("scout", str(e))
@@ -261,6 +310,19 @@ class Orchestrator:
                     # Real token tracking from Scribe's response.usage.
                     # Scribe accumulates usage across all calls in a single run().
                     self._tokens_per_agent["scribe"] = scribe.total_tokens_used
+
+                    # Memory write events for the feed
+                    self._emit_data("memory_write", {
+                        "agent": "scribe",
+                        "file_path": f"meetings/{record.meeting_id}.md",
+                        "summary": f"{record.title} — {len(record.commitments)} commitments",
+                    })
+                    for cmt in record.commitments:
+                        self._emit_data("memory_write", {
+                            "agent": "scribe",
+                            "file_path": f"commitments/{cmt.commitment_id}.md",
+                            "summary": cmt.description[:80],
+                        })
 
                 except Exception as e:
                     logger.error("Scribe failed on %s: %s", tx_path, e)
@@ -390,6 +452,20 @@ class Orchestrator:
             f"{len(draft.claims)} claims, {len(draft.gaps)} gaps",
         )
 
+        # Emit draft section for the frontend output viewer
+        self._emit_data("draft_section", {
+            "section_name": draft.section_name,
+            "claims": [
+                {
+                    "text": c.text,
+                    "citation_ids": c.citation_ids,
+                    "source_type": c.source_type,
+                }
+                for c in draft.claims
+            ],
+            "gaps": draft.gaps,
+        })
+
         # Phase 2: Auditor
         self._emit_start("auditor", "Verifying claims")
 
@@ -421,6 +497,24 @@ class Orchestrator:
             "auditor",
             f"{verified_count}✓ {contested_count}⚠ {unsupported_count}✗",
         )
+
+        # Emit verified section for the frontend report viewer
+        self._emit_data("verified_section", {
+            "section_name": verified.section_name,
+            "donor_format": verified.donor_format,
+            "verified_claims": [
+                {
+                    "text": vc.text,
+                    "citation_ids": vc.citation_ids,
+                    "source_type": vc.source_type,
+                    "tag": vc.tag.value,
+                    "reason": vc.reason,
+                    "used_vision": vc.used_vision,
+                }
+                for vc in verified.verified_claims
+            ],
+            "summary": verified.summary,
+        })
 
         return {
             "section_name": verified.section_name,
