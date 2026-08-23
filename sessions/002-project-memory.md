@@ -104,6 +104,27 @@
 
 ---
 
+## Post-session environment fix (2026-04-23)
+
+Tests passed in Claude Code's sandbox but failed locally with
+`ImportError: incompatible architecture (have 'x86_64', need 'arm64')`.
+
+Root cause: system had Intel Homebrew at `/usr/local/` installed
+via Rosetta, which made every Python (including the venv's) an
+x86_64/universal2 binary. pip pulled x86_64 wheels accordingly.
+
+Fix:
+- Disabled "Open using Rosetta" on Terminal.app
+- Installed Apple Silicon Homebrew at `/opt/homebrew/`
+- Reinstalled python@3.12 as arm64-native
+- Rebuilt venv with `/opt/homebrew/bin/python3.12`
+- Pinned deps via `pip freeze > requirements.txt`
+
+Lesson: "tests pass" in Claude Code's sandbox ≠ "tests pass locally".
+Verify on the build machine every session.
+
+---
+
 ## Next Session Definition of Ready (Draft)
 
 **Session 003: Agent Architecture + Scout**
