@@ -1,3 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+.next/
 
 # Local env files
 .env
+.env.*
+
+# OS
+.DS_Store
+
+# Claude Code session data (not project memory — those are tracked)
+.claude/
