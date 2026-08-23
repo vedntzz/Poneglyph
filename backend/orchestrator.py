@@ -18,7 +18,9 @@ is not used. See CLAUDE.md § demo flow for the UI expectations.
 from __future__ import annotations
 
 import logging
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -215,10 +217,15 @@ class Orchestrator:
             else:
                 logframe_text = raw
 
-        # Phase 1: Scout processes images
-        if image_paths:
-            self._emit_start("scout", f"Processing {len(image_paths)} document(s)")
+        # Scout and Scribe are independent — run them in parallel.
+        # Scout reads images, Scribe reads text transcripts.
+        # self._emit() appends to a queue.Queue, which is thread-safe.
+        def _run_scout() -> dict[str, int]:
+            """Process images with Scout. Returns {evidence_count: N}."""
+            if not image_paths:
+                return {"evidence_count": 0}
 
+            self._emit_start("scout", f"Processing {len(image_paths)} document(s)")
             scout = ScoutAgent(memory=self.memory)
             total_evidence = 0
 
@@ -241,16 +248,11 @@ class Orchestrator:
                     )
                     total_evidence += len(evidence_list)
 
-                    # Real token tracking from Scout's response.usage.
-                    # Scout resets total_tokens_used at the start of each run(),
-                    # so we must accumulate across the image loop ourselves.
                     self._tokens_per_agent["scout"] = (
                         self._tokens_per_agent.get("scout", 0)
                         + scout.total_tokens_used
                     )
 
-                    # Emit evidence data for the frontend output viewer.
-                    # Includes bounding boxes so ImageWithBoxes can render them.
                     filename = Path(img_path).name
                     self._emit_data("evidence", {
                         "image_path": img_path,
@@ -268,7 +270,6 @@ class Orchestrator:
                         ],
                     })
 
-                    # Emit memory write events for the feed
                     for ev in evidence_list:
                         self._emit_data("memory_write", {
                             "agent": "scout",
@@ -280,13 +281,15 @@ class Orchestrator:
                     logger.error("Scout failed on %s: %s", img_path, e)
                     self._emit_error("scout", str(e))
 
-            results["evidence_count"] = total_evidence
             self._emit_done("scout", f"{total_evidence} evidence items extracted")
+            return {"evidence_count": total_evidence}
 
-        # Phase 2: Scribe processes transcripts
-        if transcript_paths:
+        def _run_scribe() -> dict[str, int]:
+            """Process transcripts with Scribe. Returns {meeting_count, commitment_count}."""
+            if not transcript_paths:
+                return {"meeting_count": 0, "commitment_count": 0}
+
             self._emit_start("scribe", f"Processing {len(transcript_paths)} transcript(s)")
-
             scribe = ScribeAgent(memory=self.memory)
             total_meetings = 0
             total_commitments = 0
@@ -311,15 +314,11 @@ class Orchestrator:
                     total_meetings += 1
                     total_commitments += len(record.commitments)
 
-                    # Real token tracking from Scribe's response.usage.
-                    # Scribe resets total_tokens_used at the start of each run(),
-                    # so we must accumulate across the transcript loop ourselves.
                     self._tokens_per_agent["scribe"] = (
                         self._tokens_per_agent.get("scribe", 0)
                         + scribe.total_tokens_used
                     )
 
-                    # Memory write events for the feed
                     self._emit_data("memory_write", {
                         "agent": "scribe",
                         "file_path": f"meetings/{record.meeting_id}.md",
@@ -336,12 +335,23 @@ class Orchestrator:
                     logger.error("Scribe failed on %s: %s", tx_path, e)
                     self._emit_error("scribe", str(e))
 
-            results["meeting_count"] = total_meetings
-            results["commitment_count"] = total_commitments
             self._emit_done(
                 "scribe",
                 f"{total_meetings} meeting(s), {total_commitments} commitments",
             )
+            return {"meeting_count": total_meetings, "commitment_count": total_commitments}
+
+        # Fire Scout and Scribe in parallel
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            scout_future = pool.submit(_run_scout)
+            scribe_future = pool.submit(_run_scribe)
+
+            scout_result = scout_future.result()
+            scribe_result = scribe_future.result()
+
+        results["evidence_count"] = scout_result["evidence_count"]
+        results["meeting_count"] = scribe_result["meeting_count"]
+        results["commitment_count"] = scribe_result["commitment_count"]
 
         return results
 
@@ -615,47 +625,55 @@ class Orchestrator:
             logger.error("Query phase failed: %s", e)
             results["query"] = {"error": str(e)}
 
-        # Step 3b: Contradiction detection
-        # Run after Archivist has processed meetings+commitments so there's
-        # data to compare. Results feed the frontend's Drift Timeline.
-        try:
-            from agents.archivist import ArchivistAgent
-            archivist = ArchivistAgent(memory=self.memory)
+        # Step 3b + 4-5: Contradiction detection runs in parallel with
+        # Drafter → Auditor. Contradictions don't depend on the report and
+        # vice versa — running them concurrently saves ~20-30s.
+        def _detect_contradictions() -> None:
+            """Run contradiction detection in a background thread."""
+            try:
+                from agents.archivist import ArchivistAgent
+                archivist = ArchivistAgent(memory=self.memory)
 
-            self._emit(ProgressEvent(
-                agent_name="archivist",
-                status=AgentStatus.RUNNING,
-                current_action="Checking for commitment drift across meetings",
-                tokens_used=self._tokens_per_agent.get("archivist", 0),
-                budget_total=AGENT_BUDGETS["archivist"],
-                budget_remaining=max(0, AGENT_BUDGETS["archivist"] - self._tokens_per_agent.get("archivist", 0)),
-            ))
+                self._emit(ProgressEvent(
+                    agent_name="archivist",
+                    status=AgentStatus.RUNNING,
+                    current_action="Checking for commitment drift across meetings",
+                    tokens_used=self._tokens_per_agent.get("archivist", 0),
+                    budget_total=AGENT_BUDGETS["archivist"],
+                    budget_remaining=max(0, AGENT_BUDGETS["archivist"] - self._tokens_per_agent.get("archivist", 0)),
+                ))
 
-            contradictions = archivist.detect_contradictions(project_id=project_id)
-            self._tokens_per_agent["archivist"] = (
-                self._tokens_per_agent.get("archivist", 0) + archivist.total_tokens_used
-            )
+                contradictions = archivist.detect_contradictions(project_id=project_id)
+                self._tokens_per_agent["archivist"] = (
+                    self._tokens_per_agent.get("archivist", 0) + archivist.total_tokens_used
+                )
 
-            if contradictions:
-                self._emit_data("contradictions", {
-                    "items": [
-                        {
-                            "description": c.description,
-                            "earlier_source": c.earlier_source,
-                            "later_source": c.later_source,
-                            "earlier_claim": c.earlier_claim,
-                            "later_claim": c.later_claim,
-                            "severity": c.severity,
-                        }
-                        for c in contradictions
-                    ],
-                })
-                results["contradictions"] = [c.model_dump() for c in contradictions]
+                if contradictions:
+                    self._emit_data("contradictions", {
+                        "items": [
+                            {
+                                "description": c.description,
+                                "earlier_source": c.earlier_source,
+                                "later_source": c.later_source,
+                                "earlier_claim": c.earlier_claim,
+                                "later_claim": c.later_claim,
+                                "severity": c.severity,
+                            }
+                            for c in contradictions
+                        ],
+                    })
+                    results["contradictions"] = [c.model_dump() for c in contradictions]
 
-        except Exception as e:
-            logger.warning("Contradiction detection failed (non-fatal): %s", e)
+            except Exception as e:
+                logger.warning("Contradiction detection failed (non-fatal): %s", e)
 
-        # Step 4-5: Report (Drafter → Auditor)
+        # Start contradiction detection in background thread
+        contradiction_thread = threading.Thread(
+            target=_detect_contradictions, daemon=True,
+        )
+        contradiction_thread.start()
+
+        # Run Drafter → Auditor in foreground (main pipeline path)
         self._emit(ProgressEvent(
             agent_name="orchestrator",
             status=AgentStatus.RUNNING,
@@ -672,6 +690,9 @@ class Orchestrator:
         except Exception as e:
             logger.error("Report phase failed: %s", e)
             results["report"] = {"error": str(e)}
+
+        # Wait for contradiction detection to finish before declaring done
+        contradiction_thread.join(timeout=60)
 
         # Done
         self._emit(ProgressEvent(

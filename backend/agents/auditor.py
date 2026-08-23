@@ -31,6 +31,7 @@ import base64
 import logging
 import mimetypes
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -328,45 +329,60 @@ class AuditorAgent:
         """
         vision_results: dict[int, str] = {}
 
+        # Collect all vision checks needed, then fire in parallel.
+        # Each check is an independent API call on a different image/claim
+        # pair — no shared state between checks.
+        pending: list[tuple[int, str, str, str]] = []  # (claim_idx, claim_text, source_file, confidence)
+
         for idx, claim in enumerate(claims):
             if claim.source_type != "evidence":
                 continue
 
-            # Check each cited evidence item
             for citation_id in claim.citation_ids:
                 evidence = self._load_evidence(project_id, citation_id)
                 if evidence is None:
                     continue
 
                 if AUDITOR_ALWAYS_VISION_CHECK:
-                    # Demo mode: always re-verify image evidence to showcase
-                    # Opus 4.7's self-verification. See CAPABILITIES.md#self-verification.
                     should_vision_check = evidence.source_file is not None
                 else:
-                    # Production mode: only re-verify MEDIUM/LOW confidence
-                    # to save ~80% on vision API costs.
                     should_vision_check = (
                         evidence.source_file is not None
                         and evidence.confidence in (Confidence.MEDIUM, Confidence.LOW)
                     )
 
-                if not should_vision_check:
-                    continue
+                if should_vision_check:
+                    conf_val = evidence.confidence.value if evidence.confidence else "unknown"
+                    pending.append((idx, claim.text, evidence.source_file, conf_val))
 
-                # Independent vision call on the full original image
-                # CRITICAL: load FULL image, not cropped bbox. See
-                # sessions/003-scout.md retro — Scout's claims draw on
-                # broader document context than the single bbox.
-                vision_result = self._verify_claim_against_image(
-                    claim.text, evidence.source_file
+        if not pending:
+            return vision_results
+
+        logger.info("Auditor firing %d vision checks in parallel (max 5 workers)", len(pending))
+
+        # Fire all vision calls concurrently — each uses its own Anthropic
+        # client call, no shared mutable state. Capped at 5 workers to
+        # stay within API rate limits.
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            future_to_meta = {
+                pool.submit(self._verify_claim_against_image, claim_text, source_file): (
+                    claim_idx, source_file, confidence,
                 )
+                for claim_idx, claim_text, source_file, confidence in pending
+            }
 
-                if vision_result is not None:
-                    vision_results[idx] = vision_result
-                    logger.info(
-                        "Auditor vision-checked claim %d against %s (confidence: %s)",
-                        idx, evidence.source_file, evidence.confidence.value,
-                    )
+            for future in as_completed(future_to_meta):
+                claim_idx, source_file, confidence = future_to_meta[future]
+                try:
+                    result = future.result()
+                    if result is not None:
+                        vision_results[claim_idx] = result
+                        logger.info(
+                            "Auditor vision-checked claim %d against %s (confidence: %s)",
+                            claim_idx, source_file, confidence,
+                        )
+                except Exception as e:
+                    logger.error("Vision check failed for claim %d: %s", claim_idx, e)
 
         return vision_results
 
@@ -508,8 +524,10 @@ class AuditorAgent:
             }
         ]
 
-        # Agentic loop: model reads sources, then produces verdicts
-        max_rounds = 10
+        # Agentic loop: model reads sources, then produces verdicts.
+        # Lowered from 10 → 6: Auditor typically reads sources in 2-3
+        # rounds then renders verdicts.
+        max_rounds = 6
         for round_num in range(max_rounds):
             # Opus 4.7 adaptive thinking for adversarial reasoning
             # See CAPABILITIES.md#self-verification
