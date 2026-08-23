@@ -142,6 +142,7 @@ export function AgentCard({
   return (
     <motion.div
       layout
+      data-agent-card
       className={cn(
         "rounded-lg border bg-card p-4 transition-colors duration-300",
         borderClass,
