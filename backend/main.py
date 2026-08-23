@@ -812,6 +812,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_IMAGES = [
     str(_REPO_ROOT / "data" / "synthetic" / "form_english.png"),
     str(_REPO_ROOT / "data" / "synthetic" / "form_hindi.png"),
+    str(_REPO_ROOT / "data" / "synthetic" / "form_cold_storage.png"),
 ]
 _DEFAULT_TRANSCRIPTS = [
     str(_REPO_ROOT / "data" / "synthetic" / "meetings" / "meeting_001.txt"),
@@ -830,9 +831,8 @@ def orchestrator_stream(
     events as SSE data frames. The frontend connects with EventSource
     and updates agent cards in real time.
 
-    Uses Opus 4.7 task budgets (beta header task-budgets-2026-03-13)
-    to give each agent a visible token countdown. This is the feature
-    nobody has shipped yet. See CAPABILITIES.md#task-budgets.
+    For the canonical one-button demo, use GET /api/demo/stream instead.
+    This endpoint is for ad-hoc runs with custom project_id and action.
     """
     if action not in SSE_ACTIONS:
         raise HTTPException(
@@ -910,6 +910,104 @@ def orchestrator_stream(
 
             if event is None:
                 # Sentinel — orchestrator is done
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                break
+
+            payload = event.to_dict()
+            payload["type"] = "progress"
+            yield f"data: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Canonical demo endpoints
+# ─────────────────────────────────────────────────────────────
+
+@app.post("/api/demo/reset")
+def demo_reset() -> dict[str, str]:
+    """Wipe and re-seed the demo project so the next run starts clean.
+
+    This deletes all evidence, meetings, and commitments from the
+    mp-fpc-2024 project directory and re-creates the project with
+    a fresh logframe. Idempotent — safe to call before every demo run.
+    """
+    from demo.demo_project import reset_demo_project
+
+    project_id = reset_demo_project(_memory)
+    return {"status": "ok", "project_id": project_id}
+
+
+@app.get("/api/demo/stream")
+def demo_stream() -> StreamingResponse:
+    """Run the canonical demo: reset project, then stream the full pipeline.
+
+    This is the one-button demo endpoint. It:
+    1. Wipes and re-seeds the mp-fpc-2024 demo project
+    2. Runs all 5 agents on fixed synthetic inputs
+    3. Streams SSE progress events for the frontend
+
+    Uses 3 scanned forms + 2 meeting transcripts from /data/synthetic/.
+    """
+    from demo.demo_project import reset_demo_project, DEMO_PROJECT_ID
+    from demo.demo_project import (
+        DEMO_IMAGE_PATHS,
+        DEMO_TRANSCRIPT_PATHS,
+        DEMO_QUERY,
+        DEMO_SECTION_NAME,
+        DEMO_DONOR_FORMAT,
+    )
+
+    event_queue: queue.Queue[ProgressEvent | None] = queue.Queue()
+
+    def on_progress(event: ProgressEvent) -> None:
+        event_queue.put(event)
+
+    def run_demo() -> None:
+        try:
+            # Reset project to clean state
+            project_id = reset_demo_project(_memory)
+
+            # Run the full pipeline on fixed inputs
+            orch = Orchestrator(memory=_memory, on_progress=on_progress)
+            orch.run_full_demo(
+                project_id=project_id,
+                image_paths=DEMO_IMAGE_PATHS,
+                transcript_paths=DEMO_TRANSCRIPT_PATHS,
+                query=DEMO_QUERY,
+                section_name=DEMO_SECTION_NAME,
+                donor_format=DEMO_DONOR_FORMAT,
+            )
+        except Exception as e:
+            logger.error("Canonical demo failed: %s", e)
+            event_queue.put(ProgressEvent(
+                agent_name="orchestrator",
+                status=AgentStatus.ERROR,
+                current_action=f"Pipeline failed: {str(e)[:200]}",
+            ))
+        finally:
+            event_queue.put(None)
+
+    def event_generator():
+        thread = threading.Thread(target=run_demo, daemon=True)
+        thread.start()
+
+        while True:
+            try:
+                event = event_queue.get(timeout=120)
+            except queue.Empty:
+                yield ": keepalive\n\n"
+                continue
+
+            if event is None:
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
 

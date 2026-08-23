@@ -1,8 +1,9 @@
 """Generate synthetic test images for Scout agent testing.
 
-Creates two images that simulate scanned field forms:
+Creates three images that simulate scanned field forms:
 1. form_english.png — typed English text, simple beneficiary registration form
 2. form_hindi.png — typed Hindi text, PHM training attendance record
+3. form_cold_storage.png — cold storage facility inspection report
 
 These are stand-ins for real scanned forms. The text is typed (not
 handwritten) and the layout is simple, because the goal is to test
@@ -253,7 +254,143 @@ def generate_hindi_form() -> Path:
     return output_path
 
 
+def generate_cold_storage_form() -> Path:
+    """Generate a synthetic cold storage facility inspection report.
+
+    Targets Output 2.1 (Cold storage facilities) from the logframe.
+    Shows a site inspection report with facility details, capacity,
+    and operational status — the kind of evidence a field officer
+    would photograph and upload after a site visit.
+    """
+    img = Image.new("RGB", (IMAGE_WIDTH, IMAGE_HEIGHT), BACKGROUND_COLOR)
+    draw = ImageDraw.Draw(img)
+    font_large = _get_font(36)
+    font_medium = _get_font(24)
+    font_small = _get_font(20)
+
+    y = 60
+
+    # Header
+    draw.text(
+        (100, y),
+        "COLD STORAGE FACILITY — SITE INSPECTION REPORT",
+        fill=HEADER_COLOR,
+        font=font_large,
+    )
+    y += 60
+    draw.line([(80, y), (1420, y)], fill=LINE_COLOR, width=2)
+    y += 30
+
+    # Facility details
+    details = [
+        ("Facility Name:", "Rehli Cold Storage Unit #1"),
+        ("Location:", "Rehli Block, District Sagar, Madhya Pradesh"),
+        ("Inspection Date:", "12 April 2026"),
+        ("Inspector:", "Ankit Verma, District Coordinator"),
+        ("Project:", "MP Farmer Producer Company Support (World Bank)"),
+        ("Target Indicator:", "Output 2.1 (Cold storage facilities)"),
+    ]
+    for label, value in details:
+        draw.text((100, y), label, fill=HEADER_COLOR, font=font_medium)
+        draw.text((500, y), value, fill=TEXT_COLOR, font=font_medium)
+        y += 40
+
+    y += 20
+    draw.line([(80, y), (1420, y)], fill=LINE_COLOR, width=2)
+    y += 30
+
+    # Specification table
+    draw.text((100, y), "FACILITY SPECIFICATIONS", fill=HEADER_COLOR, font=font_medium)
+    y += 40
+
+    specs = [
+        ("Total Capacity:", "500 MT"),
+        ("Current Utilization:", "120 MT (24%)"),
+        ("Temperature Range:", "-2°C to 10°C (verified)"),
+        ("Power Backup:", "125 KVA DG set — operational"),
+        ("Construction Status:", "Complete — handed over 2026-03-28"),
+        ("Land Allotment:", "Approved by District Collector 2026-02-15"),
+    ]
+    for label, value in specs:
+        draw.text((120, y), label, fill=TEXT_COLOR, font=font_small)
+        draw.text((500, y), value, fill=TEXT_COLOR, font=font_small)
+        y += 35
+
+    y += 20
+    draw.line([(80, y), (1420, y)], fill=LINE_COLOR, width=1)
+    y += 30
+
+    # Commodities stored
+    draw.text((100, y), "COMMODITIES CURRENTLY STORED", fill=HEADER_COLOR, font=font_medium)
+    y += 40
+
+    draw.text((120, y), "Commodity", fill=HEADER_COLOR, font=font_small)
+    draw.text((500, y), "Quantity (MT)", fill=HEADER_COLOR, font=font_small)
+    draw.text((800, y), "FPC", fill=HEADER_COLOR, font=font_small)
+    draw.text((1100, y), "Date In", fill=HEADER_COLOR, font=font_small)
+    y += 35
+    draw.line([(100, y), (1400, y)], fill=LINE_COLOR, width=1)
+    y += 10
+
+    commodities = [
+        ("Potato (Kufri Jyoti)", "45", "Sagar FPC-3", "05 Apr 2026"),
+        ("Onion", "30", "Rehli FPC-1", "08 Apr 2026"),
+        ("Tomato", "25", "Sagar FPC-3", "10 Apr 2026"),
+        ("Green Chilli", "20", "Banda FPC-2", "11 Apr 2026"),
+    ]
+    for commodity, qty, fpc, date_in in commodities:
+        draw.text((120, y), commodity, fill=TEXT_COLOR, font=font_small)
+        draw.text((540, y), qty, fill=TEXT_COLOR, font=font_small)
+        draw.text((800, y), fpc, fill=TEXT_COLOR, font=font_small)
+        draw.text((1100, y), date_in, fill=TEXT_COLOR, font=font_small)
+        y += 35
+
+    y += 20
+    draw.line([(80, y), (1420, y)], fill=LINE_COLOR, width=1)
+    y += 30
+
+    # Observations
+    draw.text((100, y), "INSPECTOR OBSERVATIONS", fill=HEADER_COLOR, font=font_medium)
+    y += 40
+
+    observations = [
+        "1. Facility is fully operational and meets APEDA standards.",
+        "2. Temperature monitoring logs maintained since 28 March 2026.",
+        "3. 3 FPCs currently using the facility (target: 5 FPCs by Q3).",
+        "4. Loading dock needs minor repair — estimated cost Rs 15,000.",
+        "5. Night security guard post is vacant — recruitment pending.",
+    ]
+    for obs in observations:
+        draw.text((120, y), obs, fill=TEXT_COLOR, font=font_small)
+        y += 35
+
+    y += 30
+
+    # Overall status
+    draw.rectangle([(80, y), (1420, y + 50)], fill=(230, 245, 230), outline=LINE_COLOR)
+    draw.text(
+        (100, y + 12),
+        "OVERALL STATUS: OPERATIONAL — 1 of 5 target facilities complete",
+        fill=(20, 100, 20),
+        font=font_medium,
+    )
+    y += 80
+
+    # Signature block
+    draw.text((100, y), "Inspector Signature:", fill=TEXT_COLOR, font=font_medium)
+    y += 40
+    draw.text((100, y), "Ankit Verma, District Coordinator, Sagar", fill=TEXT_COLOR, font=font_small)
+    y += 30
+    draw.text((100, y), "Stamp: [DISTRICT PROJECT OFFICE SAGAR]", fill=TEXT_COLOR, font=font_small)
+
+    output_path = OUTPUT_DIR / "form_cold_storage.png"
+    img.save(output_path)
+    print(f"Generated: {output_path} ({IMAGE_WIDTH}x{IMAGE_HEIGHT})")
+    return output_path
+
+
 if __name__ == "__main__":
     generate_english_form()
     generate_hindi_form()
+    generate_cold_storage_form()
     print("\nDone. Test images ready for Scout.")
