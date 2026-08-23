@@ -138,6 +138,40 @@
 
 ---
 
+## Post-session fix: Scribe/Orchestrator type mismatch
+
+**Bug:** Live canonical demo crashed in the Scribe phase with
+`'MeetingRecord' object has no attribute 'meeting_id'`. The Orchestrator
+(line 317) reads `record.meeting_id` and `record.title` for SSE memory-write
+events, but `MeetingRecord` never declared those fields. The `meeting_id` was
+generated internally in `_persist_to_memory()` and never surfaced on the
+returned model.
+
+A second crash existed at line 323: `cmt.commitment_id` on
+`ExtractedCommitment`, which also lacked that field. Same root cause — IDs
+were generated during persistence but never placed on the returned models.
+
+**Fix:**
+- Added `meeting_id: str` and `title: str` fields to `MeetingRecord`
+- Added `commitment_id: str` (default empty) to `ExtractedCommitment`
+- Added `title` to `RECORD_MEETING_TOOL` schema so Opus extracts it naturally
+- Updated `prompts/scribe.md` Rule 7 to instruct title extraction
+- Moved ID generation from `_persist_to_memory()` to `run()` so IDs are
+  available on the returned record before callers access them
+
+**Coverage gap:** `test_scribe.py` never accessed `meeting_id`, `title`, or
+`commitment_id` — it only checks structural fields (attendees, decisions,
+commitments by content). The Orchestrator is the only consumer of these
+identity fields, but there is no integration test that exercises the
+Orchestrator→Scribe contract. This is the exact class of bug that isolated
+agent tests miss: contract mismatches between producer and consumer.
+
+**Lesson added to METHODOLOGY.md:** Integration tests that exercise the
+cross-agent pipeline are not optional — isolated agent tests miss contract
+mismatches.
+
+---
+
 ## Next Session (009) Definition of Ready — Draft
 
 **Scope:**

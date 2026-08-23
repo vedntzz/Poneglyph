@@ -57,6 +57,10 @@ MAX_OUTPUT_TOKENS = 12_000
 class ExtractedCommitment(BaseModel):
     """A commitment extracted from a meeting transcript."""
 
+    commitment_id: str = Field(
+        default="",
+        description="Generated ID, e.g. 'cmt-abc123'. Set after extraction.",
+    )
     owner: str = Field(description="Person who made the commitment (full name).")
     description: str = Field(description="What was promised, as a specific deliverable.")
     due_date: str | None = Field(
@@ -87,6 +91,8 @@ class MeetingRecord(BaseModel):
     Drafter) and a human-readable MoM markdown (for the project binder).
     """
 
+    meeting_id: str = Field(description="Generated ID, e.g. 'mtg-abc123'.")
+    title: str = Field(description="Short descriptive title for the meeting.")
     date: str = Field(description="Meeting date in ISO 8601 format.")
     location: str | None = Field(default=None, description="Meeting location.")
     attendees: list[str] = Field(description="Full names of attendees.")
@@ -125,6 +131,13 @@ RECORD_MEETING_TOOL: dict[str, Any] = {
     "input_schema": {
         "type": "object",
         "properties": {
+            "title": {
+                "type": "string",
+                "description": (
+                    "Short descriptive title for the meeting, e.g. "
+                    "'Q2 Progress Review with District Teams'."
+                ),
+            },
             "date": {
                 "type": "string",
                 "description": "Meeting date in ISO 8601 format (YYYY-MM-DD).",
@@ -220,6 +233,7 @@ RECORD_MEETING_TOOL: dict[str, Any] = {
             },
         },
         "required": [
+            "title",
             "date",
             "attendees",
             "decisions",
@@ -321,6 +335,10 @@ class ScribeAgent:
         # Reset token counter for this run invocation
         self.total_tokens_used = 0
 
+        # Generate meeting_id up front so it's available on the returned
+        # MeetingRecord. The Orchestrator reads record.meeting_id for SSE events.
+        meeting_id = f"mtg-{uuid.uuid4().hex[:8]}"
+
         # Opus 4.7 call with tool-forced structured output
         # NOTE: thinking + forced tool_choice is not allowed by the API
         # (same constraint as Scout, see sessions/003-scout.md).
@@ -349,7 +367,13 @@ class ScribeAgent:
         self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
         # Parse the tool use response into a MeetingRecord
-        meeting_record = self._parse_tool_response(response)
+        meeting_record = self._parse_tool_response(response, meeting_id=meeting_id)
+
+        # Assign commitment IDs so callers (Orchestrator SSE events) can
+        # reference them. Previously only generated in _persist_to_memory,
+        # which left the returned MeetingRecord without commitment IDs.
+        for commitment in meeting_record.commitments:
+            commitment.commitment_id = f"cmt-{uuid.uuid4().hex[:8]}"
 
         # Persist to ProjectMemory
         self._persist_to_memory(project_id, meeting_record, source_file_path)
@@ -388,11 +412,15 @@ class ScribeAgent:
         return logframe_text
 
     @staticmethod
-    def _parse_tool_response(response: anthropic.types.Message) -> MeetingRecord:
+    def _parse_tool_response(
+        response: anthropic.types.Message,
+        meeting_id: str,
+    ) -> MeetingRecord:
         """Extract MeetingRecord from the Opus 4.7 tool use response.
 
         Args:
             response: The API response with a record_meeting tool use block.
+            meeting_id: Pre-generated meeting ID to set on the record.
 
         Returns:
             Parsed MeetingRecord.
@@ -421,6 +449,11 @@ class ScribeAgent:
                 ]
 
                 return MeetingRecord(
+                    meeting_id=meeting_id,
+                    title=tool_input.get(
+                        "title",
+                        f"Meeting on {tool_input.get('date', 'unknown')}",
+                    ),
                     date=tool_input.get("date", "unknown"),
                     location=tool_input.get("location"),
                     attendees=tool_input.get("attendees", []),
@@ -452,9 +485,8 @@ class ScribeAgent:
             record: The parsed MeetingRecord.
             source_file_path: Path to the original transcript file.
         """
-        # Generate a meeting ID
-        short_id = uuid.uuid4().hex[:8]
-        meeting_id = f"mtg-{short_id}"
+        # Use the meeting_id already on the record (generated in run())
+        meeting_id = record.meeting_id
 
         # Build the Meeting model for ProjectMemory
         meeting = Meeting(
@@ -471,13 +503,10 @@ class ScribeAgent:
         # Write meeting with the full MoM as the markdown body
         self.memory.add_meeting(project_id, meeting, body=record.full_mom_markdown)
 
-        # Write each commitment
-        for idx, commitment in enumerate(record.commitments):
-            commitment_short_id = uuid.uuid4().hex[:8]
-            commitment_id = f"cmt-{commitment_short_id}"
-
+        # Write each commitment (IDs already assigned in run())
+        for commitment in record.commitments:
             memory_commitment = Commitment(
-                commitment_id=commitment_id,
+                commitment_id=commitment.commitment_id,
                 made_in_meeting=meeting_id,
                 owner=commitment.owner,
                 description=commitment.description,
