@@ -47,18 +47,18 @@ const STAKEHOLDER_OPTIONS = [
   "Donor Field Mission",
 ] as const;
 
-/** Rotating status messages shown during ~30-60s generation wait. */
+/** Rotating status messages — specific to what the agent actually does. */
 const LOADING_MESSAGES = [
   "Reading project memory\u2026",
-  "Checking logframe targets\u2026",
-  "Reviewing meeting commitments\u2026",
+  "Checking 19 commitments across 2 meetings\u2026",
+  "Cross-referencing 18 evidence items with logframe targets\u2026",
   "Looking for commitment drift\u2026",
-  "Identifying push-back risks\u2026",
-  "Drafting briefing\u2026",
+  "Drafting briefing for World Bank\u2026",
+  "Verifying citations\u2026",
 ] as const;
 
 /** Cycle interval for rotating loading messages (ms). */
-const LOADING_ROTATION_MS = 4_000;
+const LOADING_ROTATION_MS = 3_500;
 
 /** Static recent activity — from demo project's timeline. */
 const RECENT_ACTIVITY = [
@@ -469,8 +469,8 @@ function BriefingDisplay({ briefing, onReset }: BriefingDisplayProps) {
         )}
       </div>
 
-      {/* Project summary */}
-      <p className="text-sm text-foreground/80 leading-relaxed">
+      {/* Project summary — prose-style, wider line-height for readability */}
+      <p className="text-sm text-foreground/80 max-w-[65ch]" style={{ lineHeight: 1.7 }}>
         {briefing.project_summary}
       </p>
 
@@ -532,8 +532,8 @@ function BriefingDisplay({ briefing, onReset }: BriefingDisplayProps) {
       />
 
       {/* ── Closing note ──────────────────────────────── */}
-      <div className="rounded-lg border bg-card/50 p-5">
-        <p className="text-2xs text-muted-foreground italic leading-relaxed">
+      <div className="border-t border-zinc-800 pt-6 pl-4">
+        <p className="text-2xs text-zinc-400 italic" style={{ lineHeight: 1.6 }}>
           {briefing.closing_note}
         </p>
       </div>
@@ -589,24 +589,24 @@ function BriefingSection({
         <h3 className="text-xs font-medium">{title}</h3>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {items.map((item, i) => (
           <div
             key={i}
-            className={`rounded-md border ${borderClass} bg-card p-4 space-y-2`}
+            className={`rounded-md border ${borderClass} bg-card p-5 space-y-3`}
           >
-            <p className="text-sm font-medium text-foreground leading-relaxed">
+            <p className="text-sm font-medium text-foreground" style={{ lineHeight: 1.6 }}>
               {item.text}
             </p>
-            <p className="text-2xs text-muted-foreground italic leading-relaxed">
+            <p className="text-2xs text-zinc-400 italic" style={{ lineHeight: 1.6 }}>
               {item.rationale}
             </p>
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1.5">
               {item.citations.map((cid) => (
                 <Badge
                   key={cid}
                   variant="outline"
-                  className="font-mono text-[10px] px-1.5 py-0 h-5 text-muted-foreground hover:text-foreground cursor-default transition-colors"
+                  className="font-mono text-[10px] px-1.5 py-0 h-5 text-zinc-500 border-zinc-700 cursor-default"
                 >
                   {cid}
                 </Badge>
