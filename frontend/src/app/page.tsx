@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { AppNav } from "@/components/app-nav";
+import { CommandPalette } from "@/components/command-palette";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -31,7 +29,7 @@ interface BriefingData {
   closing_note: string;
 }
 
-type PageState =
+type BriefingState =
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "display"; briefing: BriefingData }
@@ -57,39 +55,105 @@ const LOADING_MESSAGES = [
   "Verifying citations\u2026",
 ] as const;
 
-/** Cycle interval for rotating loading messages (ms). */
 const LOADING_ROTATION_MS = 3_500;
 
-/** Static recent activity — from demo project's timeline. */
-const RECENT_ACTIVITY = [
-  {
-    timestamp: "2h ago",
-    action: "PHM training attendance ingested",
-    detail: "47 women logged in Gumla pilot session",
-  },
-  {
-    timestamp: "1d ago",
-    action: "Q1 review meeting processed",
-    detail: "13 commitments tracked, 4 open questions flagged",
-  },
-  {
-    timestamp: "3d ago",
-    action: "AgriMart drift flagged",
-    detail: "50 \u2192 42 silent walk-back detected across meetings",
-  },
-] as const;
-
-// Demo project ID — matches the pre-loaded project in the backend.
 // HACKATHON COMPROMISE: single project, no project selector.
 // See FAILURE_MODES.md.
 const DEMO_PROJECT_ID = "mp-fpc-2024";
+
+/** Section IDs for IntersectionObserver scroll tracking. */
+const SECTION_IDS = [
+  "overview",
+  "briefings",
+  "drift",
+  "logframe",
+  "documents",
+] as const;
+
+// ── Demo data for static sections ─────────────────────────────
+
+const HERO_STATS = {
+  verifiedPercent: 88,
+  evidenceItems: 18,
+  commitments: 19,
+  driftFlags: 3,
+  meetings: 2,
+} as const;
+
+const DEMO_DRIFT = [
+  {
+    topic: "AgriMarts target",
+    meetings: ["Kickoff (Oct)", "Review 1 (Dec)", "Q1 Review (Mar)"],
+    values: ["50 planned", "50 confirmed", "42 mentioned"],
+    severity: "high" as const,
+    delta: "50 \u2192 42",
+    note: "Silent walk-back: target reduced without formal revision",
+  },
+  {
+    topic: "Women PHM training",
+    meetings: ["Kickoff (Oct)", "Review 1 (Dec)", "Q1 Review (Mar)"],
+    values: ["500 women", "500 women", "478 logged"],
+    severity: "low" as const,
+    delta: "On track",
+    note: "4% gap — likely data lag, not drift",
+  },
+  {
+    topic: "Cold storage facilities",
+    meetings: ["Kickoff (Oct)", "Review 1 (Dec)", "Q1 Review (Mar)"],
+    values: ["4 planned", "3 funded", "1 verified"],
+    severity: "medium" as const,
+    delta: "4 \u2192 1 verified",
+    note: "Rehli operational; 3 others lack evidence",
+  },
+] as const;
+
+const DEMO_LOGFRAME = [
+  {
+    output: "Output 1: Market Access Infrastructure",
+    indicators: [
+      { name: "AgriMarts established", target: 50, current: 42, verified: 38 },
+      { name: "Salepoints operational", target: 200, current: 164, verified: 112 },
+      { name: "FPCs with market linkages", target: 15, current: 12, verified: 12 },
+    ],
+  },
+  {
+    output: "Output 2: Capacity Building",
+    indicators: [
+      { name: "Women trained in PHM", target: 500, current: 478, verified: 410 },
+      { name: "Lead farmers identified", target: 100, current: 87, verified: 72 },
+    ],
+  },
+  {
+    output: "Output 3: Infrastructure",
+    indicators: [
+      { name: "Cold storage facilities", target: 4, current: 1, verified: 1 },
+      { name: "Processing units set up", target: 8, current: 5, verified: 3 },
+    ],
+  },
+] as const;
+
+const DEMO_DOCUMENTS = [
+  { name: "Q1 Review MoM", type: "Meeting", date: "Mar 2026", pages: 4 },
+  { name: "Rehli Cold Storage Inspection", type: "Field Form", date: "Feb 2026", pages: 2 },
+  { name: "PHM Attendance — Gumla", type: "Field Form", date: "Feb 2026", pages: 3 },
+  { name: "FPC Registration Summary", type: "Report", date: "Jan 2026", pages: 8 },
+  { name: "Kickoff MoM", type: "Meeting", date: "Oct 2025", pages: 6 },
+  { name: "AgriMart Site Photos", type: "Evidence", date: "Mar 2026", pages: 12 },
+] as const;
 
 // ─────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const [pageState, setPageState] = useState<PageState>({ kind: "idle" });
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [briefingModalOpen, setBriefingModalOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("overview");
+
+  /* Briefing generation state — lives here so it persists across modal open/close. */
+  const [briefingState, setBriefingState] = useState<BriefingState>({
+    kind: "idle",
+  });
   const [stakeholder, setStakeholder] = useState<string>(
     STAKEHOLDER_OPTIONS[0]
   );
@@ -97,22 +161,42 @@ export default function HomePage() {
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Rotate loading messages every LOADING_ROTATION_MS
+  /* Rotate loading messages. */
   useEffect(() => {
-    if (pageState.kind !== "loading") return;
+    if (briefingState.kind !== "loading") return;
     setLoadingMessageIndex(0);
     const interval = setInterval(() => {
       setLoadingMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
     }, LOADING_ROTATION_MS);
     return () => clearInterval(interval);
-  }, [pageState.kind]);
+  }, [briefingState.kind]);
+
+  /* IntersectionObserver to track which section is in view. */
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
+        }
+      },
+      { rootMargin: "-80px 0px -60% 0px", threshold: 0 }
+    );
+
+    for (const id of SECTION_IDS) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
 
   const handleGenerate = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setPageState({ kind: "loading" });
+    setBriefingState({ kind: "loading" });
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/briefing/generate`, {
@@ -134,10 +218,10 @@ export default function HomePage() {
       }
 
       const data: BriefingData = await res.json();
-      setPageState({ kind: "display", briefing: data });
+      setBriefingState({ kind: "display", briefing: data });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setPageState({
+      setBriefingState({
         kind: "error",
         message:
           err instanceof Error ? err.message : "Failed to generate briefing",
@@ -145,471 +229,333 @@ export default function HomePage() {
     }
   }, [stakeholder, meetingContext]);
 
-  const handleReset = useCallback(() => {
+  const handleBriefingReset = useCallback(() => {
     abortRef.current?.abort();
-    setPageState({ kind: "idle" });
+    setBriefingState({ kind: "idle" });
     setMeetingContext("");
   }, []);
 
+  const scrollToSection = useCallback((sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
   return (
-    <main className="min-h-screen flex flex-col items-center px-6 py-12 md:py-20">
-      <div className="w-full max-w-[720px] space-y-10">
-        {/* ── Project context strip ────────────────────────── */}
-        <ProjectContextStrip />
+    <div className="min-h-screen bg-canvas">
+      <AppNav
+        activeSection={activeSection}
+        onCommandPalette={() => setCommandPaletteOpen(true)}
+      />
 
-        {/* ── Main content area ────────────────────────────── */}
-        <AnimatePresence mode="wait">
-          {pageState.kind === "idle" && (
-            <motion.div
-              key="idle"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-            >
-              <HeroCard
-                stakeholder={stakeholder}
-                onStakeholderChange={setStakeholder}
-                meetingContext={meetingContext}
-                onMeetingContextChange={setMeetingContext}
-                onGenerate={handleGenerate}
-              />
-            </motion.div>
-          )}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onBriefMe={() => setBriefingModalOpen(true)}
+        onNavigate={scrollToSection}
+      />
 
-          {pageState.kind === "loading" && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <LoadingState
-                messageIndex={loadingMessageIndex}
-                onCancel={handleReset}
-              />
-            </motion.div>
-          )}
+      {/* ── Main content ── */}
+      <main className="mx-auto max-w-[1080px] px-6 pb-20 pt-8">
+        {/* Section 1: Page header */}
+        <section id="overview" className="mb-10">
+          <PageHeader />
+        </section>
 
-          {pageState.kind === "display" && (
-            <motion.div
-              key="display"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            >
-              <BriefingDisplay
-                briefing={pageState.briefing}
-                onReset={handleReset}
-              />
-            </motion.div>
-          )}
+        {/* Section 2: Hero stat block */}
+        <section className="mb-10">
+          <HeroStatBlock onBriefMe={() => setBriefingModalOpen(true)} />
+        </section>
 
-          {pageState.kind === "error" && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ErrorState
-                message={pageState.message}
-                onRetry={handleGenerate}
-                onReset={handleReset}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Section 3: Briefing card */}
+        <section id="briefings" className="mb-10">
+          <BriefingCard
+            briefingState={briefingState}
+            onOpenModal={() => setBriefingModalOpen(true)}
+          />
+        </section>
 
-        {/* ── Recent activity ──────────────────────────────── */}
-        <RecentActivityStrip />
+        {/* Section 4: Drift */}
+        <section id="drift" className="mb-10">
+          <DriftSection />
+        </section>
 
-        {/* ── Footer link ─────────────────────────────────── */}
-        <footer className="text-center pt-4 pb-8">
-          <Link
-            href="/demo"
-            className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Open project dashboard &rarr;
-          </Link>
-        </footer>
-      </div>
-    </main>
+        {/* Section 5: Logframe coverage */}
+        <section id="logframe" className="mb-10">
+          <LogframeSection />
+        </section>
+
+        {/* Section 6: Documents grid */}
+        <section id="documents" className="mb-10">
+          <DocumentsGrid />
+        </section>
+      </main>
+
+      {/* Briefing modal */}
+      <BriefingModal
+        isOpen={briefingModalOpen}
+        onClose={() => setBriefingModalOpen(false)}
+        briefingState={briefingState}
+        stakeholder={stakeholder}
+        onStakeholderChange={setStakeholder}
+        meetingContext={meetingContext}
+        onMeetingContextChange={setMeetingContext}
+        loadingMessageIndex={loadingMessageIndex}
+        onGenerate={handleGenerate}
+        onReset={handleBriefingReset}
+      />
+    </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// Project context strip
+// Section 1: Page header
 // ─────────────────────────────────────────────────────────────
 
-function ProjectContextStrip() {
+function PageHeader() {
   return (
-    <div className="flex items-center gap-2 text-2xs text-muted-foreground">
-      <span className="font-medium text-foreground/70">
+    <div className="flex items-center gap-3">
+      <h1 className="text-lg font-semibold text-text-primary">
         Madhya Pradesh Farmer Producer Company
-      </span>
-      <span className="text-border">&middot;</span>
-      <span>World Bank</span>
-      <span className="text-border">&middot;</span>
-      <span>Last updated 2h ago</span>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Hero card
-// ─────────────────────────────────────────────────────────────
-
-interface HeroCardProps {
-  stakeholder: string;
-  onStakeholderChange: (value: string) => void;
-  meetingContext: string;
-  onMeetingContextChange: (value: string) => void;
-  onGenerate: () => void;
-}
-
-function HeroCard({
-  stakeholder,
-  onStakeholderChange,
-  meetingContext,
-  onMeetingContextChange,
-  onGenerate,
-}: HeroCardProps) {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-lg font-medium text-foreground">
-        What do you want to do today?
       </h1>
+      <span className="rounded-full bg-highlight-mint px-2.5 py-0.5 text-2xs font-medium text-accent-forest">
+        Active
+      </span>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* ── Primary: Briefing ────────────────────────── */}
-        <div className="rounded-lg border bg-card p-6 space-y-5">
-          <div className="space-y-2">
-            {/* Icon: simplified briefcase/document */}
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
+// ─────────────────────────────────────────────────────────────
+// Section 2: Hero stat block with circular progress arc
+// ─────────────────────────────────────────────────────────────
+
+function HeroStatBlock({ onBriefMe }: { onBriefMe: () => void }) {
+  const { verifiedPercent, evidenceItems, commitments, driftFlags, meetings } =
+    HERO_STATS;
+
+  /* SVG arc math for the circular progress indicator.
+     Radius 54, stroke 8, viewBox 128x128. */
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset =
+    circumference - (verifiedPercent / 100) * circumference;
+
+  return (
+    <div className="rounded-xl border border-hairline bg-surface p-8">
+      <div className="flex items-center gap-10">
+        {/* Circular arc */}
+        <div className="relative flex shrink-0 items-center justify-center">
+          <svg width="128" height="128" viewBox="0 0 128 128">
+            {/* Background ring */}
+            <circle
+              cx="64"
+              cy="64"
+              r={radius}
               fill="none"
-              className="text-emerald-500"
-            >
-              <path
-                d="M3 6h14v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6ZM7 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M10 10v3"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            <h2 className="text-sm font-medium text-foreground">
-              Brief me for the next stakeholder meeting
-            </h2>
-            <p className="text-2xs text-muted-foreground leading-relaxed">
-              Get a 1-page brief on what to push for, what they&apos;ll push
-              back on, and what to avoid raising
-            </p>
-          </div>
-
-          {/* Stakeholder selector */}
-          <div className="space-y-3">
-            <label className="block text-2xs text-muted-foreground">
-              Stakeholder
-            </label>
-            <select
-              value={stakeholder}
-              onChange={(e) => onStakeholderChange(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 text-2xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {STAKEHOLDER_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-
-            <label className="block text-2xs text-muted-foreground">
-              Meeting context{" "}
-              <span className="text-muted-foreground/50">(optional)</span>
-            </label>
-            <Input
-              placeholder="e.g. Quarterly progress review — Q1 FY2026"
-              value={meetingContext}
-              onChange={(e) => onMeetingContextChange(e.target.value)}
-              className="text-2xs h-9"
+              stroke="#E7E5DF"
+              strokeWidth="8"
             />
+            {/* Progress arc */}
+            <circle
+              cx="64"
+              cy="64"
+              r={radius}
+              fill="none"
+              stroke="#15803D"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              transform="rotate(-90 64 64)"
+              className="transition-all duration-1000 ease-out"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="font-mono text-xl font-bold text-text-primary">
+              {verifiedPercent}%
+            </span>
+            <span className="text-[10px] text-text-tertiary">verified</span>
           </div>
-
-          <Button
-            onClick={onGenerate}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-2xs h-9"
-          >
-            Generate briefing
-          </Button>
         </div>
 
-        {/* ── Secondary: Drift ─────────────────────────── */}
-        <div className="rounded-lg border bg-card p-6 flex flex-col justify-between">
-          <div className="space-y-2">
-            {/* Icon: diverging arrows */}
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              className="text-amber-500"
-            >
-              <path
-                d="M10 4v6M10 10l-4 4M10 10l4 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <h2 className="text-sm font-medium text-foreground">
-              Show me what&apos;s drifting
-            </h2>
-            <p className="text-2xs text-muted-foreground leading-relaxed">
-              See where commitments have silently changed across stakeholder
-              meetings
-            </p>
+        {/* Stats grid */}
+        <div className="flex-1">
+          <div className="grid grid-cols-2 gap-x-10 gap-y-5">
+            <StatItem label="Evidence items" value={evidenceItems} />
+            <StatItem label="Commitments tracked" value={commitments} />
+            <StatItem label="Drift flags" value={driftFlags} accent="amber" />
+            <StatItem label="Meetings processed" value={meetings} />
           </div>
 
-          <Link href="/demo" className="mt-6">
-            <Button
-              variant="outline"
-              className="w-full text-2xs h-9"
+          <div className="mt-6">
+            <button
+              onClick={onBriefMe}
+              className="rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
             >
-              View drift timeline
-            </Button>
-          </Link>
+              Brief me for the next meeting
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Loading state
-// ─────────────────────────────────────────────────────────────
-
-interface LoadingStateProps {
-  messageIndex: number;
-  onCancel: () => void;
-}
-
-function LoadingState({ messageIndex, onCancel }: LoadingStateProps) {
+function StatItem({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: "amber";
+}) {
   return (
-    <div className="rounded-lg border bg-card p-12 flex flex-col items-center gap-6">
-      {/* Pulsing dot */}
-      <div className="relative h-5 w-5">
-        <span className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping" />
-        <span className="absolute inset-1 rounded-full bg-emerald-500" />
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={messageIndex}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.3 }}
-          className="text-sm text-muted-foreground"
-        >
-          {LOADING_MESSAGES[messageIndex]}
-        </motion.p>
-      </AnimatePresence>
-
-      <p className="text-2xs text-muted-foreground/50">
-        This takes 30&ndash;60 seconds
-      </p>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onCancel}
-        className="text-2xs text-muted-foreground"
+    <div>
+      <p
+        className={`font-mono text-lg font-semibold ${
+          accent === "amber" ? "text-accent-amber" : "text-text-primary"
+        }`}
       >
-        Cancel
-      </Button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Briefing display
-// ─────────────────────────────────────────────────────────────
-
-interface BriefingDisplayProps {
-  briefing: BriefingData;
-  onReset: () => void;
-}
-
-function BriefingDisplay({ briefing, onReset }: BriefingDisplayProps) {
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-1">
-        <h2 className="text-lg font-medium text-foreground">
-          Briefing: {briefing.stakeholder}
-        </h2>
-        {briefing.meeting_context && (
-          <p className="text-2xs text-muted-foreground">
-            {briefing.meeting_context}
-          </p>
-        )}
-      </div>
-
-      {/* Project summary — prose-style, wider line-height for readability */}
-      <p className="text-sm text-foreground/80 max-w-[65ch]" style={{ lineHeight: 1.7 }}>
-        {briefing.project_summary}
+        {value}
       </p>
-
-      {/* ── Push for ──────────────────────────────────── */}
-      <BriefingSection
-        icon={
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M3 8h10M9 4l4 4-4 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        }
-        title="Push for"
-        accentClass="text-emerald-500"
-        borderClass="border-emerald-500/20"
-        items={briefing.push_for}
-      />
-
-      {/* ── They'll push back ─────────────────────────── */}
-      <BriefingSection
-        icon={
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M13 8H3M7 4L3 8l4 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        }
-        title="They'll push back on"
-        accentClass="text-amber-500"
-        borderClass="border-amber-500/20"
-        items={briefing.push_back_on_us}
-      />
-
-      {/* ── Don't bring up ────────────────────────────── */}
-      <BriefingSection
-        icon={
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M4 4l8 8M12 4l-8 8"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        }
-        title="Don't bring up"
-        accentClass="text-muted-foreground"
-        borderClass="border-border"
-        items={briefing.do_not_bring_up}
-      />
-
-      {/* ── Closing note ──────────────────────────────── */}
-      <div className="border-t border-zinc-800 pt-6 pl-4">
-        <p className="text-2xs text-zinc-400 italic" style={{ lineHeight: 1.6 }}>
-          {briefing.closing_note}
-        </p>
-      </div>
-
-      {/* ── Actions ───────────────────────────────────── */}
-      <div className="flex gap-3">
-        <Button
-          onClick={onReset}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white text-2xs h-9"
-        >
-          Generate another briefing
-        </Button>
-        <Button
-          variant="outline"
-          className="text-2xs h-9"
-          onClick={() => {
-            // Stub — PDF export is out of scope for the hackathon.
-            // A real product would render the briefing to a PDF via
-            // a headless browser or a server-side PDF library.
-            alert("PDF export coming soon");
-          }}
-        >
-          Export as PDF
-        </Button>
-      </div>
+      <p className="text-2xs text-text-tertiary">{label}</p>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// Briefing section (push_for / push_back / do_not_bring_up)
+// Section 3: Briefing card
 // ─────────────────────────────────────────────────────────────
 
-interface BriefingSectionProps {
-  icon: React.ReactNode;
-  title: string;
-  accentClass: string;
-  borderClass: string;
-  items: BriefingItemData[];
+function BriefingCard({
+  briefingState,
+  onOpenModal,
+}: {
+  briefingState: BriefingState;
+  onOpenModal: () => void;
+}) {
+  return (
+    <div>
+      <SectionHeader title="Briefings" />
+
+      {briefingState.kind === "display" ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-2xs text-text-secondary">
+              Latest: {briefingState.briefing.stakeholder}
+              {briefingState.briefing.meeting_context &&
+                ` \u2014 ${briefingState.briefing.meeting_context}`}
+            </p>
+            <button
+              onClick={onOpenModal}
+              className="text-2xs font-medium text-accent-forest hover:text-accent-forest-hover"
+            >
+              Generate new
+            </button>
+          </div>
+
+          {/* Project summary */}
+          <p
+            className="text-sm text-text-secondary"
+            style={{ lineHeight: 1.7 }}
+          >
+            {briefingState.briefing.project_summary}
+          </p>
+
+          {/* Stacked sections */}
+          <BriefingSectionInline
+            title="Push for"
+            accentColor="forest"
+            items={briefingState.briefing.push_for}
+          />
+          <BriefingSectionInline
+            title="They'll push back on"
+            accentColor="amber"
+            items={briefingState.briefing.push_back_on_us}
+          />
+          <BriefingSectionInline
+            title="Don't bring up"
+            accentColor="muted"
+            items={briefingState.briefing.do_not_bring_up}
+          />
+
+          {/* Closing note */}
+          <div className="border-t border-hairline pt-4">
+            <p
+              className="text-2xs italic text-text-tertiary"
+              style={{ lineHeight: 1.6 }}
+            >
+              {briefingState.briefing.closing_note}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
+          <p className="text-sm text-text-secondary">
+            No briefing generated yet
+          </p>
+          <p className="mt-1 text-2xs text-text-tertiary">
+            Generate a stakeholder briefing to see push-for, push-back, and
+            what to avoid
+          </p>
+          <button
+            onClick={onOpenModal}
+            className="mt-4 rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
+          >
+            Brief me...
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
-function BriefingSection({
-  icon,
+function BriefingSectionInline({
   title,
-  accentClass,
-  borderClass,
+  accentColor,
   items,
-}: BriefingSectionProps) {
-  return (
-    <div className="space-y-3">
-      <div className={`flex items-center gap-2 ${accentClass}`}>
-        {icon}
-        <h3 className="text-xs font-medium">{title}</h3>
-      </div>
+}: {
+  title: string;
+  accentColor: "forest" | "amber" | "muted";
+  items: BriefingItemData[];
+}) {
+  const colors = {
+    forest: { dot: "bg-accent-forest", border: "border-accent-forest/20" },
+    amber: { dot: "bg-accent-amber", border: "border-accent-amber/20" },
+    muted: { dot: "bg-text-tertiary", border: "border-hairline" },
+  }[accentColor];
 
-      <div className="space-y-4">
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${colors.dot}`} />
+        <h4 className="text-2xs font-semibold text-text-primary">{title}</h4>
+      </div>
+      <div className="space-y-3">
         {items.map((item, i) => (
           <div
             key={i}
-            className={`rounded-md border ${borderClass} bg-card p-5 space-y-3`}
+            className={`rounded-lg border ${colors.border} bg-surface p-4`}
           >
-            <p className="text-sm font-medium text-foreground" style={{ lineHeight: 1.6 }}>
-              {item.text}
+            <p
+              className="text-sm text-text-primary"
+              style={{ lineHeight: 1.6 }}
+            >
+              {highlightNumbers(item.text)}
             </p>
-            <p className="text-2xs text-zinc-400 italic" style={{ lineHeight: 1.6 }}>
+            <p
+              className="mt-2 text-2xs italic text-text-tertiary"
+              style={{ lineHeight: 1.6 }}
+            >
               {item.rationale}
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {item.citations.map((cid) => (
-                <Badge
+                <span
                   key={cid}
-                  variant="outline"
-                  className="font-mono text-[10px] px-1.5 py-0 h-5 text-zinc-500 border-zinc-700 cursor-default"
+                  className="rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
                 >
                   {cid}
-                </Badge>
+                </span>
               ))}
             </div>
           </div>
@@ -619,69 +565,544 @@ function BriefingSection({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Error state
-// ─────────────────────────────────────────────────────────────
-
-interface ErrorStateProps {
-  message: string;
-  onRetry: () => void;
-  onReset: () => void;
+/**
+ * Highlight numbers in briefing prose with monospace + green accent.
+ *
+ * Matches patterns like "88%", "42 AgriMarts", "₹1.2 crore", "50 → 42".
+ * Returns a mix of plain text and styled <span> elements.
+ */
+function highlightNumbers(text: string): React.ReactNode {
+  const parts = text.split(/(\d[\d,.]*%?(?:\s*[→\u2192]\s*\d[\d,.]*%?)?)/g);
+  return parts.map((part, i) =>
+    /\d/.test(part) ? (
+      <span
+        key={i}
+        className="font-mono font-semibold text-accent-forest"
+      >
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
 }
 
-function ErrorState({ message, onRetry, onReset }: ErrorStateProps) {
+// ─────────────────────────────────────────────────────────────
+// Section 4: Drift
+// ─────────────────────────────────────────────────────────────
+
+function DriftSection() {
   return (
-    <div className="rounded-lg border border-destructive/30 bg-card p-8 space-y-4">
-      <p className="text-sm text-destructive font-medium">
-        Briefing generation failed
-      </p>
-      <p className="text-2xs text-muted-foreground">{message}</p>
-      <div className="flex gap-3">
-        <Button
-          onClick={onRetry}
-          className="text-2xs h-9"
-          size="sm"
+    <div>
+      <SectionHeader title="Drift" />
+      <div className="space-y-4">
+        {DEMO_DRIFT.map((row) => (
+          <DriftRow key={row.topic} row={row} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DriftRow({
+  row,
+}: {
+  row: (typeof DEMO_DRIFT)[number];
+}) {
+  const severityColors = {
+    high: {
+      bg: "bg-red-50",
+      border: "border-accent-critical/20",
+      badge: "bg-red-100 text-accent-critical",
+    },
+    medium: {
+      bg: "bg-amber-50",
+      border: "border-accent-amber/20",
+      badge: "bg-amber-100 text-accent-amber",
+    },
+    low: {
+      bg: "bg-canvas",
+      border: "border-hairline",
+      badge: "bg-highlight-mint text-accent-forest",
+    },
+  }[row.severity];
+
+  return (
+    <div
+      className={`rounded-xl border ${severityColors.border} ${severityColors.bg} p-5`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-medium text-text-primary">
+              {row.topic}
+            </h4>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${severityColors.badge}`}
+            >
+              {row.severity}
+            </span>
+          </div>
+          <p className="mt-1 text-2xs text-text-secondary">{row.note}</p>
+        </div>
+        <span className="shrink-0 font-mono text-xs font-semibold text-text-primary">
+          {row.delta}
+        </span>
+      </div>
+
+      {/* SVG timeline */}
+      <div className="mt-4">
+        <svg
+          width="100%"
+          height="40"
+          viewBox="0 0 600 40"
+          preserveAspectRatio="xMidYMid meet"
+          className="overflow-visible"
         >
-          Retry
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onReset}
-          className="text-2xs h-9"
-          size="sm"
-        >
-          Back
-        </Button>
+          {/* Connector line */}
+          <line
+            x1="40"
+            y1="20"
+            x2="560"
+            y2="20"
+            stroke={
+              row.severity === "high"
+                ? "#991B1B"
+                : row.severity === "medium"
+                ? "#B45309"
+                : "#15803D"
+            }
+            strokeWidth="2"
+            strokeDasharray={row.severity === "low" ? "none" : "6 4"}
+          />
+
+          {/* Nodes */}
+          {row.meetings.map((meeting, i) => {
+            const x = 40 + (i * 520) / (row.meetings.length - 1);
+            return (
+              <g key={i}>
+                <circle
+                  cx={x}
+                  cy="20"
+                  r="5"
+                  fill="white"
+                  stroke={
+                    row.severity === "high"
+                      ? "#991B1B"
+                      : row.severity === "medium"
+                      ? "#B45309"
+                      : "#15803D"
+                  }
+                  strokeWidth="2"
+                />
+                <text
+                  x={x}
+                  y="6"
+                  textAnchor="middle"
+                  className="fill-text-tertiary text-[9px]"
+                >
+                  {meeting}
+                </text>
+                <text
+                  x={x}
+                  y="36"
+                  textAnchor="middle"
+                  className="fill-text-primary text-[10px] font-medium"
+                >
+                  {row.values[i]}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// Recent activity strip
+// Section 5: Logframe coverage
 // ─────────────────────────────────────────────────────────────
 
-function RecentActivityStrip() {
+function LogframeSection() {
   return (
-    <div className="space-y-3">
-      <h3 className="text-2xs text-muted-foreground font-medium uppercase tracking-wider">
-        Recent activity
-      </h3>
-      <div className="space-y-0 divide-y divide-border">
-        {RECENT_ACTIVITY.map((entry, i) => (
-          <div key={i} className="flex items-baseline gap-3 py-2.5">
-            <span className="text-2xs text-muted-foreground/50 font-mono w-12 shrink-0">
-              {entry.timestamp}
-            </span>
-            <span className="text-2xs text-foreground/70">
-              {entry.action}
-            </span>
-            <span className="text-2xs text-muted-foreground hidden sm:inline">
-              &middot; {entry.detail}
-            </span>
+    <div>
+      <SectionHeader title="Logframe Coverage" />
+      <div className="space-y-6">
+        {DEMO_LOGFRAME.map((group) => (
+          <div key={group.output}>
+            <h4 className="mb-3 text-2xs font-semibold text-text-secondary">
+              {group.output}
+            </h4>
+            <div className="space-y-2">
+              {group.indicators.map((ind) => {
+                const progress = Math.round((ind.current / ind.target) * 100);
+                const verifiedProgress = Math.round(
+                  (ind.verified / ind.target) * 100
+                );
+                return (
+                  <div
+                    key={ind.name}
+                    className="rounded-lg border border-hairline bg-surface p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xs font-medium text-text-primary">
+                        {ind.name}
+                      </span>
+                      <span className="font-mono text-2xs text-text-tertiary">
+                        {ind.current}/{ind.target}
+                      </span>
+                    </div>
+                    {/* Stacked progress bars: reported (light) + verified (solid) */}
+                    <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-canvas">
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-accent-forest/20"
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      />
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-accent-forest"
+                        style={{ width: `${Math.min(verifiedProgress, 100)}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 flex gap-4 text-[10px] text-text-tertiary">
+                      <span>{ind.verified} verified</span>
+                      <span>{ind.current - ind.verified} unverified</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Section 6: Documents grid
+// ─────────────────────────────────────────────────────────────
+
+function DocumentsGrid() {
+  return (
+    <div>
+      <SectionHeader title="Documents" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {DEMO_DOCUMENTS.map((doc) => {
+          const typeColors: Record<string, string> = {
+            Meeting: "bg-blue-50 text-blue-700",
+            "Field Form": "bg-highlight-mint text-accent-forest",
+            Report: "bg-amber-50 text-accent-amber",
+            Evidence: "bg-purple-50 text-purple-700",
+          };
+          return (
+            <div
+              key={doc.name}
+              className="rounded-xl border border-hairline bg-surface p-4 transition-colors hover:bg-hover-warm"
+            >
+              {/* Document icon */}
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mb-2 text-text-tertiary"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <p className="truncate text-2xs font-medium text-text-primary">
+                {doc.name}
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    typeColors[doc.type] ?? "bg-canvas text-text-tertiary"
+                  }`}
+                >
+                  {doc.type}
+                </span>
+                <span className="text-[10px] text-text-tertiary">
+                  {doc.date}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Briefing modal
+// ─────────────────────────────────────────────────────────────
+
+interface BriefingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  briefingState: BriefingState;
+  stakeholder: string;
+  onStakeholderChange: (value: string) => void;
+  meetingContext: string;
+  onMeetingContextChange: (value: string) => void;
+  loadingMessageIndex: number;
+  onGenerate: () => void;
+  onReset: () => void;
+}
+
+function BriefingModal({
+  isOpen,
+  onClose,
+  briefingState,
+  stakeholder,
+  onStakeholderChange,
+  meetingContext,
+  onMeetingContextChange,
+  loadingMessageIndex,
+  onGenerate,
+  onReset,
+}: BriefingModalProps) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[80] bg-black/20 backdrop-blur-[2px]"
+            onClick={onClose}
+          />
+
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed left-1/2 top-[10%] z-[81] max-h-[80vh] w-[640px] -translate-x-1/2 overflow-y-auto rounded-xl border border-hairline bg-surface p-6 shadow-lg"
+          >
+            {/* Header */}
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-text-primary">
+                Generate Briefing
+              </h2>
+              <button
+                onClick={onClose}
+                className="rounded-md p-1 text-text-tertiary transition-colors hover:bg-hover-warm hover:text-text-primary"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {briefingState.kind === "idle" && (
+                <motion.div
+                  key="modal-idle"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="mb-1.5 block text-2xs text-text-secondary">
+                      Stakeholder
+                    </label>
+                    <select
+                      value={stakeholder}
+                      onChange={(e) => onStakeholderChange(e.target.value)}
+                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-2xs text-text-primary outline-none focus:border-accent-forest"
+                    >
+                      {STAKEHOLDER_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-2xs text-text-secondary">
+                      Meeting context{" "}
+                      <span className="text-text-tertiary">(optional)</span>
+                    </label>
+                    <input
+                      placeholder="e.g. Quarterly progress review — Q1 FY2026"
+                      value={meetingContext}
+                      onChange={(e) => onMeetingContextChange(e.target.value)}
+                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-2xs text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent-forest"
+                    />
+                  </div>
+
+                  <button
+                    onClick={onGenerate}
+                    className="w-full rounded-lg bg-accent-forest py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
+                  >
+                    Generate briefing
+                  </button>
+                </motion.div>
+              )}
+
+              {briefingState.kind === "loading" && (
+                <motion.div
+                  key="modal-loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col items-center gap-5 py-10"
+                >
+                  {/* Pulsing dot */}
+                  <div className="relative h-5 w-5">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-accent-forest/30" />
+                    <span className="absolute inset-1 rounded-full bg-accent-forest" />
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={loadingMessageIndex}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.3 }}
+                      className="text-sm text-text-secondary"
+                    >
+                      {LOADING_MESSAGES[loadingMessageIndex]}
+                    </motion.p>
+                  </AnimatePresence>
+
+                  <p className="text-2xs text-text-tertiary">
+                    This takes 30&ndash;60 seconds
+                  </p>
+
+                  <button
+                    onClick={() => {
+                      onReset();
+                    }}
+                    className="text-2xs text-text-tertiary transition-colors hover:text-text-primary"
+                  >
+                    Cancel
+                  </button>
+                </motion.div>
+              )}
+
+              {briefingState.kind === "display" && (
+                <motion.div
+                  key="modal-display"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-4"
+                >
+                  <p className="text-sm text-text-secondary" style={{ lineHeight: 1.7 }}>
+                    {briefingState.briefing.project_summary}
+                  </p>
+
+                  <BriefingSectionInline
+                    title="Push for"
+                    accentColor="forest"
+                    items={briefingState.briefing.push_for}
+                  />
+                  <BriefingSectionInline
+                    title="They'll push back on"
+                    accentColor="amber"
+                    items={briefingState.briefing.push_back_on_us}
+                  />
+                  <BriefingSectionInline
+                    title="Don't bring up"
+                    accentColor="muted"
+                    items={briefingState.briefing.do_not_bring_up}
+                  />
+
+                  <div className="border-t border-hairline pt-4">
+                    <p
+                      className="text-2xs italic text-text-tertiary"
+                      style={{ lineHeight: 1.6 }}
+                    >
+                      {briefingState.briefing.closing_note}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={onReset}
+                      className="rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
+                    >
+                      Generate another
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="rounded-lg border border-hairline px-5 py-2.5 text-2xs font-medium text-text-secondary transition-colors hover:bg-hover-warm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {briefingState.kind === "error" && (
+                <motion.div
+                  key="modal-error"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-4 py-4"
+                >
+                  <p className="text-sm font-medium text-accent-critical">
+                    Briefing generation failed
+                  </p>
+                  <p className="text-2xs text-text-secondary">
+                    {briefingState.message}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={onGenerate}
+                      className="rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={onReset}
+                      className="text-2xs text-text-tertiary transition-colors hover:text-text-primary"
+                    >
+                      Back
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shared helpers
+// ─────────────────────────────────────────────────────────────
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
+      {title}
+    </h3>
   );
 }
