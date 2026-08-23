@@ -40,6 +40,13 @@ interface ImageEvidence {
   }>;
 }
 
+/** Draft section from the Drafter (pre-verification). */
+interface DraftSection {
+  sectionName: string;
+  claims: Array<{ text: string; citationIds: string[]; sourceType: string }>;
+  gaps: string[];
+}
+
 /** Verified section from the Auditor. */
 interface VerifiedSection {
   sectionName: string;
@@ -51,6 +58,7 @@ interface VerifiedSection {
 type RightPanelView =
   | { kind: "empty" }
   | { kind: "evidence"; imageFilename: string }
+  | { kind: "draft" }
   | { kind: "report" };
 
 // ─────────────────────────────────────────────────────────────
@@ -189,6 +197,7 @@ function LogframePanel({
 function OutputPanel({
   view,
   evidenceByImage,
+  draftSection,
   verifiedSection,
   selectedBoxId,
   selectedClaimId,
@@ -197,6 +206,7 @@ function OutputPanel({
 }: {
   view: RightPanelView;
   evidenceByImage: Record<string, ImageEvidence>;
+  draftSection: DraftSection | null;
   verifiedSection: VerifiedSection | null;
   selectedBoxId: string | null;
   selectedClaimId: string | null;
@@ -288,6 +298,53 @@ function OutputPanel({
     );
   }
 
+  if (view.kind === "draft" && draftSection) {
+    return (
+      <div className="flex h-full flex-col overflow-y-auto">
+        <div className="border-b border-zinc-800 px-4 py-3">
+          <h2 className="text-xs font-medium text-zinc-300">
+            Draft Report
+          </h2>
+          <p className="font-mono text-2xs text-zinc-600">
+            Awaiting Auditor verification...
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="max-w-[65ch] space-y-4">
+            <h3 className="text-sm font-medium text-zinc-100">
+              {draftSection.sectionName}
+            </h3>
+
+            <div className="space-y-2">
+              {draftSection.claims.map((claim, i) => (
+                <p key={i} className="text-xs leading-relaxed text-zinc-400">
+                  {claim.text}
+                  <span className="ml-1.5 inline-flex items-center rounded-sm border border-zinc-700 bg-zinc-800/50 px-1 py-0.5 font-mono text-2xs text-zinc-500">
+                    {claim.citationIds.length} cite{claim.citationIds.length !== 1 ? "s" : ""}
+                  </span>
+                </p>
+              ))}
+            </div>
+
+            {draftSection.gaps.length > 0 && (
+              <div className="border-t border-zinc-800 pt-3">
+                <p className="mb-1.5 font-mono text-2xs font-medium uppercase tracking-wider text-amber-500">
+                  Gaps identified
+                </p>
+                {draftSection.gaps.map((gap, i) => (
+                  <p key={i} className="text-2xs text-zinc-500">
+                    {gap}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view.kind === "report" && verifiedSection) {
     return (
       <div className="flex h-full flex-col overflow-y-auto">
@@ -336,6 +393,9 @@ export default function DemoPage() {
   const [evidenceCounts, setEvidenceCounts] = useState<Record<string, number>>(
     {},
   );
+
+  // Draft section from Drafter (pre-verification)
+  const [draftSection, setDraftSection] = useState<DraftSection | null>(null);
 
   // Verified report from Auditor
   const [verifiedSection, setVerifiedSection] =
@@ -442,6 +502,22 @@ export default function DemoPage() {
         return;
       }
 
+      if (eventType === "draft_section") {
+        const rawClaims = data.claims as Array<Record<string, unknown>>;
+        const section: DraftSection = {
+          sectionName: (data.section_name as string) || "",
+          claims: rawClaims.map((c) => ({
+            text: (c.text as string) || "",
+            citationIds: (c.citation_ids as string[]) || [],
+            sourceType: (c.source_type as string) || "",
+          })),
+          gaps: (data.gaps as string[]) || [],
+        };
+        setDraftSection(section);
+        setRightPanelView({ kind: "draft" });
+        return;
+      }
+
       if (eventType === "verified_section") {
         const rawClaims = data.verified_claims as Array<
           Record<string, unknown>
@@ -477,6 +553,7 @@ export default function DemoPage() {
     setMemoryEvents([]);
     setEvidenceByImage({});
     setEvidenceCounts({});
+    setDraftSection(null);
     setVerifiedSection(null);
     setRightPanelView({ kind: "empty" });
     setSelectedBoxId(null);
@@ -633,6 +710,7 @@ export default function DemoPage() {
           <OutputPanel
             view={rightPanelView}
             evidenceByImage={evidenceByImage}
+            draftSection={draftSection}
             verifiedSection={verifiedSection}
             selectedBoxId={selectedBoxId}
             selectedClaimId={selectedClaimId}
