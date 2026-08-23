@@ -1,0 +1,19 @@
+project_id: mp-fpc-2024
+name: Madhya Pradesh Farmer Producer Company Support Program
+donor: World Bank
+created_at: '2024-09-01T10:00:00+05:30'
+logframe_path: logframe.md
+description: >
+  Technical assistance to establish and strengthen Farmer Producer Companies
+  (FPCs) across 5 districts in Madhya Pradesh under the National Rural
+  Livelihoods Mission. Scope includes FPC registration, farmer enrollment,
+  cold storage infrastructure, sale point setup, and capacity building
+  with a focus on women's participation.
+districts:
+  - Sagar
+  - Damoh
+  - Tikamgarh
+  - Chhatarpur
+  - Panna
+implementing_agency: Synergy Technofin Pvt. Ltd.
+project_duration: 2024-09-01 to 2026-08-31
