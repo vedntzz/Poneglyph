@@ -1,14 +1,18 @@
-"""Orchestrator — Python controller that sequences agents and tracks task budgets.
+"""Orchestrator — Python controller that sequences agents and tracks token usage.
 
 NOT an LLM call. This is a plain Python class that decides which agent runs
-when, passes task budgets to each agent's API call, accumulates token usage,
+when, reads real token usage from each agent's accumulated response.usage,
 and emits progress events via a callback. The Orchestrator is the simplest
 agent — it's just control flow.
 
-Task budgets are an Opus 4.7 beta feature (header task-budgets-2026-03-13).
-The model sees its remaining token budget and self-prioritizes. Poneglyph
-exposes this to the user via live UI countdowns — radical honesty about cost.
-See CAPABILITIES.md#task-budgets, CLAUDE.md § demo flow.
+Each agent has a client-side token budget ceiling (defined in constants.py).
+After every API call, agents accumulate response.usage.input_tokens +
+output_tokens into self.total_tokens_used. The Orchestrator reads this
+after each agent.run() and emits real tokens_used / budget_remaining via
+SSE — the UI shows honest token spend against the budget cap.
+
+See constants.py for why task_budget (the model-visible beta parameter)
+is not used. See CLAUDE.md § demo flow for the UI expectations.
 """
 
 from __future__ import annotations
@@ -20,28 +24,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
 
+from constants import AGENT_BUDGETS
 from memory.project_memory import ProjectMemory
 
 logger = logging.getLogger(__name__)
-
-
-# ─────────────────────────────────────────────────────────────
-# Constants — task budgets per agent
-# ─────────────────────────────────────────────────────────────
-
-# Opus 4.7 task budget: the model sees this countdown and self-prioritizes.
-# Minimum is 20k tokens. Values tuned by agent complexity.
-# See CAPABILITIES.md#task-budgets.
-AGENT_BUDGETS: dict[str, int] = {
-    "scout": 25_000,
-    "scribe": 25_000,
-    "archivist": 40_000,
-    "drafter": 50_000,
-    "auditor": 60_000,
-}
-
-# Beta header required for task budgets
-TASK_BUDGET_BETA_HEADER = "task-budgets-2026-03-13"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -233,14 +219,9 @@ class Orchestrator:
                     )
                     total_evidence += len(evidence_list)
 
-                    # Track tokens from Scout's API call
-                    # Scout makes a single API call per image; usage is on the
-                    # response object but ScoutAgent doesn't expose it directly.
-                    # We estimate based on the evidence count for now.
-                    # HACKATHON COMPROMISE: accurate token tracking requires
-                    # modifying each agent to return usage stats. For the demo,
-                    # we simulate realistic consumption patterns.
-                    self._tokens_per_agent["scout"] = self._tokens_per_agent.get("scout", 0) + 5_000
+                    # Real token tracking from Scout's response.usage.
+                    # Scout accumulates usage across all calls in a single run().
+                    self._tokens_per_agent["scout"] = scout.total_tokens_used
 
                 except Exception as e:
                     logger.error("Scout failed on %s: %s", img_path, e)
@@ -277,8 +258,9 @@ class Orchestrator:
                     total_meetings += 1
                     total_commitments += len(record.commitments)
 
-                    # HACKATHON COMPROMISE: simulated token tracking (see above)
-                    self._tokens_per_agent["scribe"] = self._tokens_per_agent.get("scribe", 0) + 6_000
+                    # Real token tracking from Scribe's response.usage.
+                    # Scribe accumulates usage across all calls in a single run().
+                    self._tokens_per_agent["scribe"] = scribe.total_tokens_used
 
                 except Exception as e:
                     logger.error("Scribe failed on %s: %s", tx_path, e)
@@ -328,8 +310,9 @@ class Orchestrator:
                 query=query,
             )
 
-            # HACKATHON COMPROMISE: simulated token tracking
-            self._tokens_per_agent["archivist"] = 15_000
+            # Real token tracking from Archivist's response.usage,
+            # accumulated across all agentic loop rounds.
+            self._tokens_per_agent["archivist"] = archivist.total_tokens_used
 
             self._emit_done(
                 "archivist",
@@ -389,16 +372,17 @@ class Orchestrator:
             donor_format=donor_format,
         )
 
-        # HACKATHON COMPROMISE: simulated token tracking
-        self._tokens_per_agent["drafter"] = 20_000
+        # Real token tracking from Drafter's response.usage,
+        # accumulated across all agentic loop rounds.
+        self._tokens_per_agent["drafter"] = drafter.total_tokens_used
 
         self._emit(ProgressEvent(
             agent_name="drafter",
             status=AgentStatus.RUNNING,
             current_action=f"Draft complete: {len(draft.claims)} claims",
-            tokens_used=20_000,
+            tokens_used=drafter.total_tokens_used,
             budget_total=AGENT_BUDGETS["drafter"],
-            budget_remaining=30_000,
+            budget_remaining=max(0, AGENT_BUDGETS["drafter"] - drafter.total_tokens_used),
         ))
 
         self._emit_done(
@@ -425,8 +409,9 @@ class Orchestrator:
             draft=draft,
         )
 
-        # HACKATHON COMPROMISE: simulated token tracking
-        self._tokens_per_agent["auditor"] = 25_000
+        # Real token tracking from Auditor's response.usage,
+        # accumulated across vision checks + main verification loop.
+        self._tokens_per_agent["auditor"] = auditor.total_tokens_used
 
         verified_count = sum(1 for c in verified.verified_claims if c.tag.value == "verified")
         contested_count = sum(1 for c in verified.verified_claims if c.tag.value == "contested")

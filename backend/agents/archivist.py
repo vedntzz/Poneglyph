@@ -321,6 +321,10 @@ class ArchivistAgent:
             )
         self.client = anthropic.Anthropic(api_key=resolved_key)
         self.system_prompt = self._load_system_prompt()
+        # Accumulated token usage across all API calls in a single method invocation.
+        # Read by the Orchestrator after answer_query() / detect_contradictions()
+        # to emit real budget data via SSE.
+        self.total_tokens_used: int = 0
 
     @staticmethod
     def _load_system_prompt() -> str:
@@ -363,6 +367,9 @@ class ArchivistAgent:
 
         logger.info("Archivist answering query for project=%s: %s", project_id, query[:80])
 
+        # Reset token counter for this invocation
+        self.total_tokens_used = 0
+
         # All tools: memory-reading tools + the final answer tool
         all_tools = MEMORY_TOOLS + [ANSWER_QUERY_TOOL]
 
@@ -394,6 +401,9 @@ class ArchivistAgent:
                 thinking={"type": "adaptive"},
                 messages=messages,
             )
+
+            # Track real token usage from response.usage
+            self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
             # Check if the model produced a final answer
             final_answer = self._check_for_answer(response)
@@ -647,6 +657,9 @@ class ArchivistAgent:
         """
         logger.info("Archivist detecting contradictions for project=%s", project_id)
 
+        # Reset token counter for this invocation
+        self.total_tokens_used = 0
+
         # Load all commitments and meetings into a single context block.
         # For contradiction detection, we need the full picture — selective
         # reading won't work because we're comparing everything against everything.
@@ -684,6 +697,9 @@ class ArchivistAgent:
                 }
             ],
         )
+
+        # Track real token usage from response.usage
+        self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
         return self._parse_contradictions_response(response)
 

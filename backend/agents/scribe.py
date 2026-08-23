@@ -262,6 +262,9 @@ class ScribeAgent:
             )
         self.client = anthropic.Anthropic(api_key=resolved_key)
         self.system_prompt = self._load_system_prompt()
+        # Accumulated token usage across all API calls in a single run().
+        # Read by the Orchestrator after run() to emit real budget data via SSE.
+        self.total_tokens_used: int = 0
 
     @staticmethod
     def _load_system_prompt() -> str:
@@ -315,6 +318,9 @@ class ScribeAgent:
             project_id,
         )
 
+        # Reset token counter for this run invocation
+        self.total_tokens_used = 0
+
         # Opus 4.7 call with tool-forced structured output
         # NOTE: thinking + forced tool_choice is not allowed by the API
         # (same constraint as Scout, see sessions/003-scout.md).
@@ -338,6 +344,9 @@ class ScribeAgent:
                 }
             ],
         )
+
+        # Track real token usage from response.usage for budget countdown UI
+        self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
         # Parse the tool use response into a MeetingRecord
         meeting_record = self._parse_tool_response(response)

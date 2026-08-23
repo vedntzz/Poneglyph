@@ -227,6 +227,9 @@ class ScoutAgent:
             )
         self.client = anthropic.Anthropic(api_key=resolved_key)
         self.system_prompt = self._load_system_prompt()
+        # Accumulated token usage across all API calls in a single run().
+        # Read by the Orchestrator after run() to emit real budget data via SSE.
+        self.total_tokens_used: int = 0
 
     @staticmethod
     def _load_system_prompt() -> str:
@@ -284,13 +287,15 @@ class ScoutAgent:
             project_id,
         )
 
+        # Reset token counter for this run invocation
+        self.total_tokens_used = 0
+
         # Opus 4.7 vision call with tool-forced structured output
         # See CAPABILITIES.md#pixel-vision, CLAUDE.md § Model parameters
         #
         # NOTE: thinking + forced tool_choice is not allowed by the API.
         # We prioritize forced tool use (reliable structured output) over
-        # adaptive thinking. effort: "xhigh" still provides extended
-        # reasoning. See sessions/003-scout.md.
+        # adaptive thinking. See sessions/003-scout.md.
         response = self.client.messages.create(
             model=MODEL,
             max_tokens=MAX_OUTPUT_TOKENS,
@@ -323,6 +328,9 @@ class ScoutAgent:
                 }
             ],
         )
+
+        # Track real token usage from response.usage for budget countdown UI
+        self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
         # Parse the tool use response
         raw_items = self._parse_tool_response(response)

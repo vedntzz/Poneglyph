@@ -225,6 +225,9 @@ class DrafterAgent:
             )
         self.client = anthropic.Anthropic(api_key=resolved_key)
         self.system_prompt = self._load_system_prompt()
+        # Accumulated token usage across all API calls in a single run().
+        # Read by the Orchestrator after run() to emit real budget data via SSE.
+        self.total_tokens_used: int = 0
 
     @staticmethod
     def _load_system_prompt() -> str:
@@ -286,6 +289,9 @@ class DrafterAgent:
             section_name, project_id, donor_format,
         )
 
+        # Reset token counter for this run invocation
+        self.total_tokens_used = 0
+
         donor_template = self._load_donor_template(donor_format)
         all_tools = MEMORY_TOOLS + [DRAFT_SECTION_TOOL]
 
@@ -320,6 +326,9 @@ class DrafterAgent:
                 thinking={"type": "adaptive"},
                 messages=messages,
             )
+
+            # Track real token usage from response.usage
+            self.total_tokens_used += response.usage.input_tokens + response.usage.output_tokens
 
             # Check for final draft output
             draft = self._check_for_draft(response, donor_format)
