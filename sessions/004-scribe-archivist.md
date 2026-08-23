@@ -171,3 +171,31 @@ Within budget. Archivist API calls are the most expensive part (agentic loop for
 **Verification:** `test_memory.py` passes (including new regression test). `test_archivist.py` passes (both query and contradiction tests). The `TypeError` is gone.
 
 **Lesson:** When a constructor accepts a type-restricted parameter, coerce it at the boundary. Don't rely on callers getting the type right. This is exactly what CLAUDE.md § "Fail loudly, fail early" means — but the better version is "accept generously, store strictly."
+
+---
+
+## Post-session fix: Contradiction test assertion quality (2026-04-23)
+
+### Problem 1: Assertion checked count, not content
+The original test assertion checked that `"50"` or `"42"` appeared anywhere across ALL contradiction texts combined. These numbers can match unrelated contradictions (village counts, training numbers), causing the test to print "PASSED: Contradiction detected (AgriMart walk-back)" even when no returned contradiction actually mentioned AgriMarts.
+
+### Problem 2: AgriMart walk-back is non-deterministic
+The seeded AgriMart 50→42 walk-back IS in the test data (meeting_001 line 30-34, meeting_002 line 19-27). However, the model doesn't always classify it as a contradiction because meeting_002 has Rajesh explicitly discussing the change ("Let's be practical. 42 operational AgriMarts...") and Priya pushing back ("the logframe says 50"). The model sometimes reads this as a partially-acknowledged revision rather than an unacknowledged walk-back — a legitimate interpretation given the prompt's distinction between acknowledged and unacknowledged changes.
+
+### Fix
+- Added `_contradiction_is_agrimart()` helper that checks for AgriMart-related keywords (`agrimart`, `agri-mart`, `salepoint`, etc.) OR both numbers 50 and 42 in a single contradiction.
+- Assertion now filters contradictions through this helper and fails with a descriptive message listing all found contradictions if none match AgriMarts.
+
+### Variance across 3 consecutive runs (2026-04-23)
+
+| Run | Total contradictions | AgriMart detected? | Severity | Other contradictions |
+|-----|---------------------|-------------------|----------|---------------------|
+| 1 | 4 | **Yes** | high | village scope 12→9 (med), training deadline May→Mar (low), compliance audit status (low) |
+| 2 | 2 | **No** | — | training deadline May→Mar (low), compliance audit scope (low) |
+| 3 | 3 | **No** | — | village scope 12→9 (med), training deadline May→Mar (med), compliance audit (low, self-corrected) |
+
+**AgriMart detected: 1 of 3 runs (33%).**
+
+**Range of total contradictions: 2–4.** Training deadline change (May 15→March 6) is the most reliably detected contradiction (3/3 runs). Village scope reduction (12→9 villages) detected in 2/3 runs. Compliance audit appears in all 3 but with varying framing. AgriMart walk-back is the least reliable — likely because the meeting data makes it borderline (Rajesh acknowledges 42 is the realistic number, Priya pushes back about the logframe target, and they agree to document the deviation).
+
+**Implication for evals:** Contradiction detection is inherently non-deterministic. For EVALS.md, report the range, not a single number. The test with the strict assertion will fail ~67% of the time on the AgriMart check. This is the honest result — the assertion is correct, the model's classification of borderline cases varies.

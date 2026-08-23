@@ -22,8 +22,41 @@ from memory.models import (
     CommitmentStatus,
     Meeting,
 )
-from agents.archivist import ArchivistAgent
+from agents.archivist import ArchivistAgent, Contradiction
 from agents.scribe import ScribeAgent
+
+
+# ─────────────────────────────────────────────────────────────
+# Helpers for content-aware assertion
+# ─────────────────────────────────────────────────────────────
+
+# Keywords that identify the seeded AgriMart walk-back scenario.
+# meeting_001 commits to 50 AgriMarts by Q3; meeting_002 walks back to 42.
+AGRIMART_KEYWORDS = frozenset({
+    "agrimart", "agri-mart", "agri mart", "salepoint", "sale point",
+})
+
+
+def _contradiction_is_agrimart(contradiction: Contradiction) -> bool:
+    """Check whether a contradiction references the AgriMart walk-back.
+
+    Returns True if the contradiction text contains an AgriMart-related
+    keyword, OR if both numbers 50 and 42 appear in a single contradiction
+    (no other seeded commitment involves both numbers).
+    """
+    text = (
+        f"{contradiction.description} "
+        f"{contradiction.earlier_claim} "
+        f"{contradiction.later_claim}"
+    ).lower()
+
+    has_keyword = any(kw in text for kw in AGRIMART_KEYWORDS)
+
+    # Both numbers in one contradiction is a strong signal — no other
+    # commitment in the test data uses both 50 and 42.
+    has_both_numbers = "50" in text and "42" in text
+
+    return has_keyword or has_both_numbers
 
 # ─────────────────────────────────────────────────────────────
 # Test data
@@ -153,22 +186,25 @@ def test_contradiction_detection() -> None:
             print(f"    Later:   {c.later_claim[:80]} [{c.later_source}]")
             print(f"    Severity: {c.severity}")
 
-        # Assertions
+        # Assertions — check content, not just count
         assert len(contradictions) >= 1, (
-            f"Expected at least 1 contradiction (AgriMart 50→42 walk-back), "
-            f"got {len(contradictions)}"
+            f"Expected at least 1 contradiction, got 0"
         )
 
-        # Check that at least one contradiction mentions the AgriMart number change
-        contradiction_texts = " ".join(
-            f"{c.description} {c.earlier_claim} {c.later_claim}".lower()
-            for c in contradictions
-        )
-        assert "50" in contradiction_texts or "42" in contradiction_texts or "agrimart" in contradiction_texts.lower() or "agri" in contradiction_texts, (
-            f"Expected AgriMart contradiction (50→42), but text was: {contradiction_texts[:300]}"
+        # The seeded test scenario is the AgriMart 50→42 walk-back.
+        # Verify at least one contradiction specifically references it.
+        agrimart_hits = [c for c in contradictions if _contradiction_is_agrimart(c)]
+        assert len(agrimart_hits) >= 1, (
+            f"Expected at least 1 contradiction about the AgriMart walk-back "
+            f"(50→42), but none of the {len(contradictions)} contradictions "
+            f"reference AgriMarts. Contradictions found:\n"
+            + "\n".join(f"  - {c.description}" for c in contradictions)
         )
 
-        print("\n  PASSED: Contradiction detected (AgriMart walk-back)")
+        print(f"\n  AgriMart contradiction verified: {agrimart_hits[0].description}")
+        print(f"    Earlier: {agrimart_hits[0].earlier_claim[:100]}")
+        print(f"    Later:   {agrimart_hits[0].later_claim[:100]}")
+        print("\n  PASSED: Seeded AgriMart walk-back detected and content verified")
 
 
 def main() -> None:
