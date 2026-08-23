@@ -7,6 +7,7 @@ import { AgentCard } from "@/components/agent-card";
 import { MemoryFeed, type MemoryEvent } from "@/components/memory-feed";
 import { ImageWithBoxes, type BoundingBox } from "@/components/image-with-boxes";
 import { type VerifiedClaim } from "@/components/verified-report-viewer";
+import { StreamingText } from "@/components/streaming-text";
 import {
   DocumentsPanel,
   type DemoDocument,
@@ -340,7 +341,11 @@ function OutputPanel({
             <div className="space-y-2">
               {draftSection.claims.map((claim, i) => (
                 <p key={i} className="text-xs leading-relaxed text-zinc-400">
-                  {claim.text}
+                  <StreamingText
+                    text={claim.text}
+                    msPerWord={30}
+                    className="text-xs leading-relaxed text-zinc-400"
+                  />
                   <span className="ml-1.5 inline-flex items-center rounded-sm border border-zinc-700 bg-zinc-800/50 px-1 py-0.5 font-mono text-2xs text-zinc-500">
                     {claim.citationIds.length} cite
                     {claim.citationIds.length !== 1 ? "s" : ""}
