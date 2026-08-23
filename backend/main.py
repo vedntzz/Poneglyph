@@ -7,13 +7,20 @@ stack round-trip before any real agent logic is added.
 
 from __future__ import annotations
 
+import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import anthropic
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from agents.scout import ScoutAgent
+from memory.project_memory import ProjectMemory
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Poneglyph",
@@ -138,3 +145,138 @@ def hello_agent(request: HelloAgentRequest) -> HelloAgentResponse:
         ) from e
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ─────────────────────────────────────────────────────────────
+# Scout endpoint
+# ─────────────────────────────────────────────────────────────
+
+class BoundingBox(BaseModel):
+    """Pixel-coordinate bounding box from Opus 4.7's vision."""
+
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+
+
+class EvidenceResponse(BaseModel):
+    """A single evidence item extracted by Scout."""
+
+    evidence_id: str
+    source: str
+    date_collected: str
+    district: str | None = None
+    village: str | None = None
+    logframe_indicator: str | None = None
+    summary: str
+    raw_text: str | None = None
+    confidence: str | None = None
+    source_file: str | None = None
+    bounding_boxes: list[BoundingBox] | None = None
+
+
+class ScoutExtractResponse(BaseModel):
+    """Response from the Scout evidence extraction endpoint."""
+
+    project_id: str
+    evidence_count: int
+    evidence: list[EvidenceResponse]
+
+
+# Shared ProjectMemory instance — see CLAUDE.md § Agent architecture.
+# HACKATHON COMPROMISE: single instance, no project isolation beyond
+# the project_id directory. See FAILURE_MODES.md.
+_memory = ProjectMemory()
+
+
+@app.post("/api/scout/extract", response_model=ScoutExtractResponse)
+async def scout_extract(
+    project_id: str = Form(..., description="Project slug, e.g. 'mp-fpc-2024'."),
+    image: UploadFile = File(..., description="Document image to extract evidence from."),
+) -> ScoutExtractResponse:
+    """Extract evidence from a document image using the Scout agent.
+
+    Accepts a project_id and an image upload, runs Scout with Opus 4.7's
+    pixel-coordinate vision, and returns structured evidence with bounding
+    boxes. Evidence is also persisted to ProjectMemory.
+
+    The project must already exist and have a logframe loaded.
+    """
+    # Read the project's logframe — Scout needs it to map evidence to indicators
+    project_dir = _memory._project_dir(project_id)
+    logframe_path = project_dir / "logframe.md"
+
+    if not project_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{project_id}' not found. Create it first via the API.",
+        )
+    if not logframe_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project '{project_id}' has no logframe. Load one before running Scout.",
+        )
+
+    # Read logframe body (skip YAML frontmatter)
+    logframe_text = logframe_path.read_text(encoding="utf-8")
+    # Strip frontmatter if present
+    if logframe_text.startswith("---\n"):
+        parts = logframe_text.split("---\n", maxsplit=2)
+        if len(parts) >= 3:
+            logframe_text = parts[2].strip()
+
+    # Read uploaded image
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+
+    # Store the uploaded image so it can be referenced later
+    uploads_dir = project_dir / "uploads"
+    uploads_dir.mkdir(exist_ok=True)
+    stored_path = uploads_dir / (image.filename or "upload.png")
+    stored_path.write_bytes(image_bytes)
+
+    try:
+        scout = ScoutAgent(memory=_memory)
+        evidence_list = scout.run(
+            project_id=project_id,
+            image_source=image_bytes,
+            logframe=logframe_text,
+            source_file_path=str(stored_path),
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 500,
+            detail=f"Scout API error: {e.message if hasattr(e, 'message') else str(e)}",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # Convert Evidence models to response format
+    response_evidence = []
+    for ev in evidence_list:
+        boxes = None
+        if ev.bounding_boxes:
+            boxes = [BoundingBox(**box) for box in ev.bounding_boxes]
+        response_evidence.append(
+            EvidenceResponse(
+                evidence_id=ev.evidence_id,
+                source=ev.source.value,
+                date_collected=ev.date_collected,
+                district=ev.district,
+                village=ev.village,
+                logframe_indicator=ev.logframe_indicator,
+                summary=ev.summary,
+                raw_text=ev.raw_text,
+                confidence=ev.confidence.value if ev.confidence else None,
+                source_file=ev.source_file,
+                bounding_boxes=boxes,
+            )
+        )
+
+    return ScoutExtractResponse(
+        project_id=project_id,
+        evidence_count=len(response_evidence),
+        evidence=response_evidence,
+    )
