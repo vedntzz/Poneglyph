@@ -16,21 +16,15 @@ Attendees:
 
 Rajesh Sharma: Let's do a quick stock-take before the World Bank mission next month. Ankit, AgriMarts first.
 
-Ankit Verma: So we've made good progress on the AgriMart rollout. As of today, we have 42 AgriMarts either operational or in advanced stages — 28 fully operational, 14 with signed MoUs and setup underway. The gram panchayat process is smoother now that we've standardized the MoU template.
+Ankit Verma: The AgriMart rollout is on track. We have 42 in the pipeline — 28 fully operational, 14 with signed MoUs and setup underway. The standardized MoU template has really sped things up on the gram panchayat side.
 
-Rajesh Sharma: Good. 42 is solid for where we are. Let's focus on getting those 14 across the line before the review mission.
+Rajesh Sharma: Good. Let's make sure those 14 are across the line before the review mission. What's the timeline?
 
-Priya Nair: Wait — the original target was 50 by Q3, right? Are we still on track for that?
+Ankit Verma: We can get 8 to 10 of those 14 operational by mid-April. The rest are in remote blocks where logistics are slower, but the MoUs are signed so it's just execution at this point.
 
-Ankit Verma: Honestly, 42 to 45 is more realistic at this point. Some of the remaining panchayats are in remote blocks where the sarpanch hasn't been cooperative. We might need to substitute with alternate locations.
+Rajesh Sharma: Fine. Prioritize the ones closest to completion. Send me a site-wise status tracker for all 42 by next Friday — I want completion dates for the review prep.
 
-Rajesh Sharma: Let's be practical. 42 operational AgriMarts with proper documentation is better than 50 with half of them on paper only. Focus on quality. We can explain the shortfall to the Bank if the evidence trail is solid.
-
-Priya Nair: I just want to make sure we're documenting why the number changed. The logframe says 50.
-
-Rajesh Sharma: Noted. Ankit, write a brief note explaining the revised number and which panchayats were dropped and why. We'll include it in the quarterly report.
-
-Ankit Verma: Will do. I'll have the note ready by next Friday.
+Ankit Verma: Done.
 
 Rajesh Sharma: Meena, training materials?
 
@@ -57,7 +51,7 @@ Rajesh Sharma: That's going to be a red flag in the Bank review. Let's prepare a
 Priya Nair: I'll have it by Wednesday.
 
 Rajesh Sharma: Alright, summary of actions:
-1. Ankit: note explaining AgriMart count revision from target to actual, by next Friday
+1. Ankit: site-wise AgriMart status tracker with completion dates, by next Friday
 2. Meena: finalize training materials by end of this week
 3. Meena: complete FarmTrac uploads for remaining 2 training sessions this week
 4. Priya: land allotment mitigation note by Wednesday
