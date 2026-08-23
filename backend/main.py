@@ -27,7 +27,7 @@ from agents.drafter import DrafterAgent, Claim, DraftSection
 from agents.scribe import ScribeAgent, MeetingRecord, ExtractedCommitment, Disagreement
 from agents.scout import ScoutAgent
 from memory.project_memory import ProjectMemory
-from orchestrator import Orchestrator, ProgressEvent
+from orchestrator import AgentStatus, Orchestrator, ProgressEvent
 
 logger = logging.getLogger(__name__)
 
@@ -886,7 +886,7 @@ def orchestrator_stream(
             logger.error("Orchestrator thread failed: %s", e)
             event_queue.put(ProgressEvent(
                 agent_name="orchestrator",
-                status="error",
+                status=AgentStatus.ERROR,
                 current_action=f"Pipeline failed: {str(e)[:200]}",
             ))
         finally:
