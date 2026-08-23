@@ -1,0 +1,19 @@
+SYNTHETIC DATA — Generated for Poneglyph contradiction detection evaluation.
+
+Meeting: Training Budget Planning
+Date: 2026-01-10
+Attendees: Rajesh Sharma, Meena Patel, Priya Nair
+
+---
+
+Rajesh Sharma: We need to finalize the training budget for Q1. Meena, what do you need?
+
+Meena Patel: For the PHM training materials — printing, binding, visual aids, field manuals — I need Rs 50,000. That covers 500 copies of the training manual plus laminated visual aids for 12 sessions.
+
+Rajesh Sharma: Rs 50,000 for training materials. Approved. Put it in the Q1 budget as a line item.
+
+Priya Nair: I'll add it. Rs 50,000 under capacity building — training materials.
+
+Rajesh Sharma: Good. Also approve Rs 30,000 for trainer honorariums — 12 sessions at Rs 2,500 each.
+
+Meena Patel: That's confirmed. I'll start the procurement for materials this week.

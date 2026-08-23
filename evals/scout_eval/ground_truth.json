@@ -1,0 +1,362 @@
+[
+  {
+    "image": "eval_en_01.png",
+    "category": "english_typed",
+    "description": "Seed distribution record \u2014 Rehli block, Sagar",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 6
+    },
+    "key_facts": [
+      {
+        "fact": "35 farmers served",
+        "indicator": "Output 1.3"
+      },
+      {
+        "fact": "720 kg seed distributed",
+        "indicator": "Output 1.3"
+      },
+      {
+        "fact": "14 women farmers (40%)",
+        "indicator": "Output 1.3"
+      },
+      {
+        "fact": "District Sagar, Block Rehli",
+        "indicator": null
+      },
+      {
+        "fact": "Date 22 March 2026",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_en_02.png",
+    "category": "english_typed",
+    "description": "FPC registration summary \u2014 Damoh district Q1",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 7
+    },
+    "key_facts": [
+      {
+        "fact": "8 FPCs registered in Q1",
+        "indicator": "Output 1.1"
+      },
+      {
+        "fact": "416 total members enrolled",
+        "indicator": "Output 1.1"
+      },
+      {
+        "fact": "38.5% women membership rate",
+        "indicator": "Output 1.1"
+      },
+      {
+        "fact": "Target 15 FPCs by Q3 2026",
+        "indicator": "Output 1.1"
+      },
+      {
+        "fact": "Batiyagarh FPC pending audit",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_en_03.png",
+    "category": "english_typed",
+    "description": "AgriMart monthly operations report \u2014 Banda block",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 7
+    },
+    "key_facts": [
+      {
+        "fact": "Rs 1,79,000 total revenue March 2026",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "89 farmers served",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "31 women customers (35%)",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "AgriMart AM-SGR-014 fully operational",
+        "indicator": "Output 2.2"
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_en_04.png",
+    "category": "english_typed",
+    "description": "Soil testing camp report \u2014 Khurai block",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 7
+    },
+    "key_facts": [
+      {
+        "fact": "63 farmers attended",
+        "indicator": "Output 3.1"
+      },
+      {
+        "fact": "28 women farmers (44%)",
+        "indicator": "Output 3.1"
+      },
+      {
+        "fact": "63 soil samples collected",
+        "indicator": "Output 3.1"
+      },
+      {
+        "fact": "48 soil health cards issued on-site",
+        "indicator": "Output 3.1"
+      },
+      {
+        "fact": "72% nitrogen deficiency",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hi_01.png",
+    "category": "hindi_typed",
+    "description": "SHG meeting register \u2014 Lakshmi SHG, Gumla",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 6
+    },
+    "key_facts": [
+      {
+        "fact": "12 of 15 members present",
+        "indicator": null
+      },
+      {
+        "fact": "Rs 2,400 savings collected",
+        "indicator": null
+      },
+      {
+        "fact": "Group fund balance Rs 28,600",
+        "indicator": null
+      },
+      {
+        "fact": "Decided to apply for Rs 50,000 bank linkage loan",
+        "indicator": null
+      },
+      {
+        "fact": "Village Gumla, District Damoh",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hi_02.png",
+    "category": "hindi_typed",
+    "description": "Kisan Mela attendance report \u2014 Rehli, Sagar",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 7
+    },
+    "key_facts": [
+      {
+        "fact": "215 total farmers attended",
+        "indicator": "Output 3.3"
+      },
+      {
+        "fact": "78 women farmers (36%)",
+        "indicator": "Output 3.3"
+      },
+      {
+        "fact": "142 FPC members",
+        "indicator": "Output 3.3"
+      },
+      {
+        "fact": "86% rated event useful/very useful",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hi_03.png",
+    "category": "hindi_typed",
+    "description": "Warehouse receipt \u2014 Rehli cold storage, potato deposit",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 6
+    },
+    "key_facts": [
+      {
+        "fact": "45 MT potato deposited by Sagar FPC-3",
+        "indicator": "Output 2.1"
+      },
+      {
+        "fact": "900 bags at 50 kg each",
+        "indicator": null
+      },
+      {
+        "fact": "Storage temperature 4\u00b0C",
+        "indicator": null
+      },
+      {
+        "fact": "Receipt WR-2026-0087",
+        "indicator": null
+      },
+      {
+        "fact": "Expected retrieval 15 June 2026",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hi_04.png",
+    "category": "hindi_typed",
+    "description": "FPC board resolution \u2014 Rehli FPC",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 7
+    },
+    "key_facts": [
+      {
+        "fact": "7 of 9 directors present, quorum achieved",
+        "indicator": null
+      },
+      {
+        "fact": "Approved NABARD equity grant application Rs 15 lakhs",
+        "indicator": "Output 1.1"
+      },
+      {
+        "fact": "Mini truck purchase approved Rs 8 lakhs",
+        "indicator": null
+      },
+      {
+        "fact": "Membership drive target 50 new members by June",
+        "indicator": "Output 1.2"
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hw_01.png",
+    "category": "handwritten_style",
+    "description": "Field visit note \u2014 Sanchi village, data discrepancy",
+    "expected_evidence_count": {
+      "min": 2,
+      "max": 5
+    },
+    "key_facts": [
+      {
+        "fact": "67 actual farmers vs 82 claimed in FarmTrac",
+        "indicator": "Output 1.2"
+      },
+      {
+        "fact": "15 duplicate entries in FarmTrac",
+        "indicator": null
+      },
+      {
+        "fact": "29 women farmers (43%)",
+        "indicator": null
+      },
+      {
+        "fact": "Village Sanchi, District Raisen",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hw_02.png",
+    "category": "handwritten_style",
+    "description": "Training feedback sheet \u2014 organic farming, Patharia",
+    "expected_evidence_count": {
+      "min": 3,
+      "max": 6
+    },
+    "key_facts": [
+      {
+        "fact": "38 participants (24 men, 14 women)",
+        "indicator": "Output 3.1"
+      },
+      {
+        "fact": "Feedback: 4.2/5 relevance, 4.5/5 trainer, 3.8/5 practical",
+        "indicator": null
+      },
+      {
+        "fact": "93% would recommend",
+        "indicator": null
+      },
+      {
+        "fact": "3 Gond tribal farmers could not follow Hindi training",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  },
+  {
+    "image": "eval_hw_03.png",
+    "category": "handwritten_style",
+    "description": "Transcribed WhatsApp field update \u2014 AgriMart status",
+    "expected_evidence_count": {
+      "min": 2,
+      "max": 5
+    },
+    "key_facts": [
+      {
+        "fact": "AM-SGR-008 fully operational",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "AM-SGR-011 stock issues, fertilizer delayed 2 weeks",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "AM-SGR-015 not yet open, MoU pending",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "PHM module 3 training materials ready",
+        "indicator": "Output 3.2"
+      }
+    ],
+    "expected_source_type": "whatsapp"
+  },
+  {
+    "image": "eval_hw_04.png",
+    "category": "handwritten_style",
+    "description": "FPC rough financial notes \u2014 Banda FPC-2, March 2026",
+    "expected_evidence_count": {
+      "min": 2,
+      "max": 6
+    },
+    "key_facts": [
+      {
+        "fact": "Total revenue Rs 3,80,000",
+        "indicator": null
+      },
+      {
+        "fact": "Net surplus Rs 63,500",
+        "indicator": null
+      },
+      {
+        "fact": "156 members served",
+        "indicator": "Output 1.2"
+      },
+      {
+        "fact": "89 active AgriMart transactions",
+        "indicator": "Output 2.2"
+      },
+      {
+        "fact": "Unverified \u2014 pending CA review",
+        "indicator": null
+      }
+    ],
+    "expected_source_type": "field_form"
+  }
+]

@@ -1,0 +1,61 @@
+SYNTHETIC DATA — Generated for Poneglyph evaluation. Not real.
+
+Project: Madhya Pradesh Farmer Producer Company (MP-FPC)
+Meeting: World Bank Pre-Review Preparation
+Date: 2026-04-05
+Location: State Office, Bhopal (hybrid)
+Duration: 1 hour 10 minutes
+
+Attendees:
+- Rajesh Sharma (Project Director)
+- Priya Nair (State Program Manager)
+- Ankit Verma (District Coordinator, Sagar)
+- Meena Patel (Field Operations Lead)
+- Sunita Verma (District Coordinator, Damoh, via video)
+- Dr. Suresh Kumar (Agriculture Dept, GoMP, via video)
+
+---
+
+Rajesh Sharma: The World Bank review mission arrives April 20. We have 15 days to get everything in order. Let's go indicator by indicator. Priya, lead us through.
+
+Priya Nair: Starting with Output 1: FPC establishment. Target was 15 FPCs registered by Q3. Current status: 16 FPCs registered — 8 in Damoh, 8 in Sagar. We're ahead of target here. Membership total: 891 farmers, against a target of 1,000 by year-end.
+
+Rajesh Sharma: Good. What's the evidence package for Output 1?
+
+Sunita Verma: For Damoh we have registration certificates, member lists, and board resolution copies for all 8 FPCs. Everything is uploaded to the project drive.
+
+Ankit Verma: Same for Sagar. I also have photos of all 8 FPC offices and signboards.
+
+Priya Nair: Output 2: Market infrastructure. AgriMarts — target was 50 by Q3. Current count: 38 operational, 6 in setup. Total pipeline: 44.
+
+Rajesh Sharma: We're 6 short of 50. What's realistic?
+
+Ankit Verma: We can get 4 of the 6 setup ones operational by end of April. The remaining 2 need gram panchayat approvals that are stuck. Realistically, we'll be at 42 operational by the review date.
+
+Rajesh Sharma: 42 out of 50 is 84%. Not ideal but defensible if we show the trajectory. What about cold storage?
+
+Ankit Verma: Rehli facility is fully operational. Damoh facility construction is at 70% — delayed by the flooding. Target was 2 operational by Q3; we have 1 operational, 1 under construction.
+
+Priya Nair: Output 3: Training and capacity building. Meena?
+
+Meena Patel: 486 unique farmers trained across 13 sessions. Target was 500 by Q1 — we're at 97%. Women's participation: 44%. We have attendance sheets and feedback forms for 11 of 13 sessions. The remaining 2 are being uploaded.
+
+Rajesh Sharma: Get those uploads done before the mission. No gaps in the evidence trail.
+
+Dr. Suresh Kumar: From the government side, I should flag that the Additional Chief Secretary wants to see the FPC financial sustainability numbers. Revenue per FPC, cost recovery ratios. Can we prepare that?
+
+Priya Nair: We don't have full financial data from all FPCs. The 3 oldest ones in Sagar have Q1 financials. The rest are too new.
+
+Rajesh Sharma: Then we present what we have honestly. Three FPCs with financials, the rest too early for meaningful data. Don't fabricate numbers.
+
+Priya Nair: Agreed. Commitments:
+1. Ankit and Sunita: evidence packages for all indicators uploaded to project drive by April 12
+2. Meena: complete remaining 2 training attendance uploads by April 8
+3. Priya: prepare presentation deck for World Bank mission by April 15
+4. Ankit: push 4 AgriMarts from setup to operational by April 18
+5. Priya: FPC financial summary (3 FPCs with data) by April 10
+6. Dr. Kumar: arrange courtesy call with District Collector for mission day
+
+Open questions:
+- Should we request a deadline extension for the 50 AgriMart target? Rajesh to decide.
+- The Damoh cold storage delay — do we need a revised completion date? Sunita to assess.

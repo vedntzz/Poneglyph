@@ -1,0 +1,78 @@
+[
+  {
+    "test_id": "audit_verified_01",
+    "category": "should_verify",
+    "claim": "47 farmers were registered in Rahatgarh village, Sagar district on 18 April 2026.",
+    "evidence_summary": "Beneficiary Registration Form showing 47 total beneficiaries registered, district Sagar, village Rahatgarh, date 18 April 2026.",
+    "evidence_source_type": "evidence",
+    "evidence_image": "form_english.png",
+    "expected_tag": "verified",
+    "rationale": "Claim matches evidence exactly — number, location, date all align."
+  },
+  {
+    "test_id": "audit_verified_02",
+    "category": "should_verify",
+    "claim": "A cold storage facility in Rehli block with 500 MT capacity was completed and handed over on 28 March 2026.",
+    "evidence_summary": "Cold Storage Facility Site Inspection Report: Rehli Cold Storage Unit #1, total capacity 500 MT, construction status complete, handed over 2026-03-28.",
+    "evidence_source_type": "evidence",
+    "evidence_image": "form_cold_storage.png",
+    "expected_tag": "verified",
+    "rationale": "All facts match: location, capacity, completion date."
+  },
+  {
+    "test_id": "audit_verified_03",
+    "category": "should_verify",
+    "claim": "The project committed to establishing 50 AgriMarts by Q3 and weekly progress reporting.",
+    "evidence_summary": "Meeting record from 2026-01-15: '50 AgriMarts by Q3 — that's non-negotiable. It's in the logframe.' and 'Weekly updates every Friday starting this week.'",
+    "evidence_source_type": "meeting",
+    "expected_tag": "verified",
+    "rationale": "Meeting transcript directly supports both parts of the claim."
+  },
+  {
+    "test_id": "audit_verified_04",
+    "category": "should_verify",
+    "claim": "47 women attended the PHM training session in Gumla village, Damoh district.",
+    "evidence_summary": "Women's PHM Training Attendance form showing total attendance 47 women, village Gumla, district Damoh, date 18 April 2026.",
+    "evidence_source_type": "evidence",
+    "evidence_image": "form_hindi.png",
+    "expected_tag": "verified",
+    "rationale": "Attendance count and location match exactly."
+  },
+  {
+    "test_id": "audit_contested_01",
+    "category": "should_contest",
+    "claim": "All 50 committed AgriMarts are now operational as of Q1.",
+    "evidence_summary": "Meeting record from 2026-03-01: 'We have 42 in the pipeline — 28 fully operational, 14 with signed MoUs and setup underway.' Original commitment from 2026-01-15 was 50 by Q3.",
+    "evidence_source_type": "meeting",
+    "expected_tag": "contested",
+    "rationale": "Evidence shows 28 operational, not 50. The claim overstates progress. Even pipeline count is 42, not 50."
+  },
+  {
+    "test_id": "audit_contested_02",
+    "category": "should_contest",
+    "claim": "The Rehli cold storage facility is operating at 80% capacity with 400 MT stored.",
+    "evidence_summary": "Cold Storage Facility Site Inspection Report: total capacity 500 MT, current utilization 120 MT (24%).",
+    "evidence_source_type": "evidence",
+    "evidence_image": "form_cold_storage.png",
+    "expected_tag": "contested",
+    "rationale": "Evidence shows 120 MT (24%), not 400 MT (80%). The claim inflates utilization by more than 3x."
+  },
+  {
+    "test_id": "audit_unsupported_01",
+    "category": "should_unsupport",
+    "claim": "The project has completed a comprehensive gender audit across all 8 blocks with 95% compliance.",
+    "evidence_summary": "No evidence in project memory mentions a gender audit or 95% compliance figure.",
+    "evidence_source_type": "none",
+    "expected_tag": "unsupported",
+    "rationale": "No evidence exists for this claim. The meeting transcripts mention a compliance audit (different from a gender audit) at 6/8 blocks."
+  },
+  {
+    "test_id": "audit_unsupported_02",
+    "category": "should_unsupport",
+    "claim": "A memorandum of understanding was signed with NABARD for Rs 50 crore credit line to all FPCs.",
+    "evidence_summary": "No evidence in project memory mentions a NABARD MoU or a Rs 50 crore credit line. The FPC board resolution mentions a Rs 15 lakh equity grant application (different).",
+    "evidence_source_type": "none",
+    "expected_tag": "unsupported",
+    "rationale": "Complete fabrication — no evidence exists for this claim."
+  }
+]

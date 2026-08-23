@@ -1,0 +1,148 @@
+[
+  {
+    "transcript": "meeting_eval_01.txt",
+    "description": "District review — Damoh FPC progress",
+    "expected_date": "2026-02-20",
+    "expected_attendees": ["Rajesh Sharma", "Meena Patel", "Dr. Suresh Kumar", "Sunita Verma"],
+    "expected_decisions": {
+      "min": 3,
+      "max": 5,
+      "must_include_keywords": ["registrar", "March 15", "women membership", "Batiyagarh"]
+    },
+    "expected_commitments": {
+      "min": 3,
+      "max": 6,
+      "required": [
+        {"owner_contains": "Kumar", "description_contains": "letter"},
+        {"owner_contains": "Sunita", "description_contains": "Batiyagarh"},
+        {"owner_contains": "Sunita", "description_contains": "investigation"}
+      ]
+    },
+    "expected_open_questions": {
+      "min": 0,
+      "max": 2
+    },
+    "expected_disagreements": {
+      "min": 0,
+      "max": 1
+    }
+  },
+  {
+    "transcript": "meeting_eval_02.txt",
+    "description": "Emergency coordination — flood impact",
+    "expected_date": "2026-03-18",
+    "expected_attendees": ["Rajesh Sharma", "Priya Nair", "Ankit Verma", "Meena Patel"],
+    "expected_decisions": {
+      "min": 3,
+      "max": 6,
+      "must_include_keywords": ["insurance", "assessment", "force majeure"]
+    },
+    "expected_commitments": {
+      "min": 4,
+      "max": 7,
+      "required": [
+        {"owner_contains": "Ankit", "description_contains": "insurance"},
+        {"owner_contains": "Meena", "description_contains": "assessment"},
+        {"owner_contains": "Priya", "description_contains": "force majeure"}
+      ]
+    },
+    "expected_open_questions": {
+      "min": 0,
+      "max": 2
+    },
+    "expected_disagreements": {
+      "min": 0,
+      "max": 1
+    }
+  },
+  {
+    "transcript": "meeting_eval_03.txt",
+    "description": "Training program review",
+    "expected_date": "2026-03-25",
+    "expected_attendees": ["Meena Patel", "Dr. Anita Verma", "Sunita Verma", "Preeti Singh"],
+    "expected_decisions": {
+      "min": 3,
+      "max": 6,
+      "must_include_keywords": ["visual", "translator", "feedback"]
+    },
+    "expected_commitments": {
+      "min": 3,
+      "max": 6,
+      "required": [
+        {"owner_contains": "Verma", "description_contains": "session"},
+        {"owner_contains": "Preeti", "description_contains": "visual"},
+        {"owner_contains": "Sunita", "description_contains": "translator"}
+      ]
+    },
+    "expected_open_questions": {
+      "min": 1,
+      "max": 3,
+      "must_include_keywords": ["financial literacy"]
+    },
+    "expected_disagreements": {
+      "min": 0,
+      "max": 1
+    }
+  },
+  {
+    "transcript": "meeting_eval_04.txt",
+    "description": "World Bank pre-review preparation",
+    "expected_date": "2026-04-05",
+    "expected_attendees": ["Rajesh Sharma", "Priya Nair", "Ankit Verma", "Meena Patel", "Sunita Verma", "Dr. Suresh Kumar"],
+    "expected_decisions": {
+      "min": 4,
+      "max": 8,
+      "must_include_keywords": ["evidence", "upload", "AgriMart", "financial"]
+    },
+    "expected_commitments": {
+      "min": 5,
+      "max": 8,
+      "required": [
+        {"owner_contains": "Ankit", "description_contains": "evidence"},
+        {"owner_contains": "Meena", "description_contains": "upload"},
+        {"owner_contains": "Priya", "description_contains": "presentation"},
+        {"owner_contains": "Ankit", "description_contains": "AgriMart"},
+        {"owner_contains": "Priya", "description_contains": "financial"}
+      ]
+    },
+    "expected_open_questions": {
+      "min": 1,
+      "max": 3,
+      "must_include_keywords": ["deadline", "cold storage"]
+    },
+    "expected_disagreements": {
+      "min": 0,
+      "max": 1
+    }
+  },
+  {
+    "transcript": "meeting_eval_05.txt",
+    "description": "Informal stakeholder discussion (chai stall) — tests handling of unstructured conversation",
+    "expected_date": "2026-04-12",
+    "expected_attendees_min": 2,
+    "expected_attendees_must_include": ["Ankit Verma", "Govind Patel"],
+    "expected_decisions": {
+      "min": 0,
+      "max": 2,
+      "note": "This is informal — may have no formal decisions"
+    },
+    "expected_commitments": {
+      "min": 0,
+      "max": 2,
+      "required": [
+        {"owner_contains": "Ankit", "description_contains": "sorting"}
+      ]
+    },
+    "expected_open_questions": {
+      "min": 1,
+      "max": 4,
+      "must_include_keywords": ["storage rate", "sorting"]
+    },
+    "expected_disagreements": {
+      "min": 0,
+      "max": 1,
+      "note": "The storage cost concern is a tension, not a disagreement"
+    },
+    "notes": "This is deliberately an edge case: informal, unstructured, with unnamed participants. Tests whether Scribe can extract signal from noise."
+  }
+]
