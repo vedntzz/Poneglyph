@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { AgentCard } from "@/components/agent-card";
 import { MemoryFeed, type MemoryEvent } from "@/components/memory-feed";
@@ -415,7 +415,20 @@ function OutputPanel({
 // Main demo page
 // ─────────────────────────────────────────────────────────────
 
-export default function DemoPage() {
+/**
+ * Custom event names for piping pipeline data to the /app page.
+ *
+ * The DemoEngine dispatches these via window.dispatchEvent so the parent
+ * /app page can listen and update its Drift / Logframe sections with real
+ * data. This avoids prop threading through the dynamic import boundary.
+ */
+const PIPELINE_EVENTS = {
+  CONTRADICTIONS: "poneglyph:contradictions",
+  EVIDENCE: "poneglyph:evidence",
+  VERIFICATION: "poneglyph:verification",
+} as const;
+
+function DemoEngine() {
   // Agent states
   const [agents, setAgents] = useState(initialAgentStates);
   const [isRunning, setIsRunning] = useState(false);
@@ -461,6 +474,12 @@ export default function DemoPage() {
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
 
+  // Document viewer modal state
+  const [modalDocument, setModalDocument] = useState<DemoDocument | null>(null);
+  const [modalSelectedBoxId, setModalSelectedBoxId] = useState<string | null>(
+    null
+  );
+
   // Live counters
   const [liveCounts, setLiveCounts] = useState<LiveCounts>({
     documentsRead: 0,
@@ -486,6 +505,7 @@ export default function DemoPage() {
   // captures the handler once, but these values change during the pipeline.
   const evidenceByImageRef = useRef(evidenceByImage);
   evidenceByImageRef.current = evidenceByImage;
+
   const handleEventRef = useRef<(data: Record<string, unknown>) => void>();
   const pipelineCompletedRef = useRef(false);
   const memoryEventCounterRef = useRef(0);
@@ -550,6 +570,12 @@ export default function DemoPage() {
         if (contradictions && contradictions.length > 0) {
           const rows = buildDriftRows(contradictions);
           setDriftRows(rows);
+          // Pipe to parent /app page for the Drift section.
+          window.dispatchEvent(
+            new CustomEvent(PIPELINE_EVENTS.CONTRADICTIONS, {
+              detail: contradictions,
+            })
+          );
         }
 
         // Start completion choreography
@@ -661,7 +687,7 @@ export default function DemoPage() {
           [filename]: evidence,
         }));
 
-        // Update evidence counts by indicator
+        // Update evidence counts by indicator and pipe to parent.
         setEvidenceCounts((prev) => {
           const next = { ...prev };
           for (const item of evidence.items) {
@@ -669,6 +695,9 @@ export default function DemoPage() {
               next[item.indicator] = (next[item.indicator] || 0) + 1;
             }
           }
+          window.dispatchEvent(
+            new CustomEvent(PIPELINE_EVENTS.EVIDENCE, { detail: next })
+          );
           return next;
         });
 
@@ -778,6 +807,12 @@ export default function DemoPage() {
         if (items && items.length > 0) {
           const rows = buildDriftRows(items);
           setDriftRows(rows);
+          // Pipe to parent /app page for the Drift section.
+          window.dispatchEvent(
+            new CustomEvent(PIPELINE_EVENTS.CONTRADICTIONS, {
+              detail: items,
+            })
+          );
         }
         return;
       }
@@ -827,6 +862,9 @@ export default function DemoPage() {
           }
         }
         setVerificationCounts(vCounts);
+        window.dispatchEvent(
+          new CustomEvent(PIPELINE_EVENTS.VERIFICATION, { detail: vCounts })
+        );
 
         // Update live counters
         setLiveCounts((prev) => ({
@@ -938,8 +976,14 @@ export default function DemoPage() {
 
   function handleDocumentClick(doc: DemoDocument) {
     setSelectedDocumentId(doc.id === selectedDocumentId ? null : doc.id);
+    setModalSelectedBoxId(null);
 
-    // Show the document in the right panel
+    // Open the document viewer modal — this is the Scout demo moment.
+    if (doc.status === "done") {
+      setModalDocument(doc);
+    }
+
+    // Also update the right panel for the embedded 3-panel layout.
     if (doc.type === "form") {
       const imgEvidence = evidenceByImage[doc.filename];
       if (imgEvidence) {
@@ -1120,7 +1164,328 @@ export default function DemoPage() {
           )}
         </aside>
       </div>
+
+      {/* Document viewer modal — opens on document card click. */}
+      <DocumentViewerModal
+        document={modalDocument}
+        evidenceByImage={evidenceByImage}
+        memoryEvents={memoryEvents}
+        selectedBoxId={modalSelectedBoxId}
+        onBoxClick={(box) =>
+          setModalSelectedBoxId(
+            box.id === modalSelectedBoxId ? null : box.id
+          )
+        }
+        onClose={() => {
+          setModalDocument(null);
+          setModalSelectedBoxId(null);
+        }}
+      />
     </div>
+  );
+}
+
+/** Next.js page route export. */
+export default function DemoPage() {
+  return <DemoEngine />;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Document viewer modal
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Full-screen modal showing a document's original image with bounding box
+ * overlays (for forms) or transcript text with commitments (for transcripts).
+ *
+ * This is the Scout demo moment — click a document, see exactly where evidence
+ * was extracted with pixel-coordinate bounding boxes from Opus 4.7 vision.
+ */
+function DocumentViewerModal({
+  document: doc,
+  evidenceByImage,
+  memoryEvents,
+  selectedBoxId,
+  onBoxClick,
+  onClose,
+}: {
+  document: DemoDocument | null;
+  evidenceByImage: Record<string, ImageEvidence>;
+  memoryEvents: MemoryEvent[];
+  selectedBoxId: string | null;
+  onBoxClick: (box: BoundingBox) => void;
+  onClose: () => void;
+}) {
+  /* Close on Escape key. */
+  useEffect(() => {
+    if (!doc) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [doc, onClose]);
+
+  if (!doc) return null;
+
+  // Form documents: show image with bounding boxes + evidence sidebar.
+  if (doc.type === "form") {
+    const imgData = evidenceByImage[doc.filename];
+    const allBoxes = imgData
+      ? imgData.items.flatMap((item) => item.boundingBoxes)
+      : [];
+    const imageUrl = `${BACKEND_URL}/static/synthetic/${doc.filename}`;
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          key="doc-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        <motion.div
+          key="doc-modal-content"
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.97 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="fixed inset-4 z-[91] flex overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Left: document image with bounding boxes */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-medium text-zinc-200">
+                  {doc.filename}
+                </h2>
+                <p className="font-mono text-2xs text-zinc-500">
+                  {imgData
+                    ? `${imgData.items.length} evidence items extracted`
+                    : "No evidence yet"}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <ImageWithBoxes
+              imageUrl={imageUrl}
+              boxes={allBoxes}
+              selectedBoxId={selectedBoxId}
+              onBoxClick={onBoxClick}
+              imageWidth={IMAGE_WIDTH}
+              imageHeight={IMAGE_HEIGHT}
+            />
+          </div>
+
+          {/* Right: evidence list sidebar */}
+          <div className="w-[340px] shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-900">
+            <div className="border-b border-zinc-800 px-4 py-3">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400">
+                Evidence Items
+              </h3>
+            </div>
+            <div className="space-y-2 p-3">
+              {imgData?.items.map((item) => {
+                const isActive =
+                  selectedBoxId !== null &&
+                  item.boundingBoxes.some((bb) => bb.id === selectedBoxId);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      if (item.boundingBoxes.length > 0) {
+                        onBoxClick(item.boundingBoxes[0]);
+                      }
+                    }}
+                    className={`w-full rounded-md border p-3 text-left transition-colors ${
+                      isActive
+                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        : "border-zinc-800 hover:border-zinc-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-2xs text-zinc-500">
+                        {item.id}
+                      </span>
+                      {item.indicator && (
+                        <span className="rounded-sm bg-zinc-800 px-1.5 py-0.5 font-mono text-2xs text-zinc-400">
+                          {item.indicator}
+                        </span>
+                      )}
+                      <span
+                        className={`font-mono text-2xs ${
+                          item.confidence === "HIGH"
+                            ? "text-emerald-400"
+                            : item.confidence === "MEDIUM"
+                              ? "text-amber-400"
+                              : "text-red-400"
+                        }`}
+                      >
+                        {item.confidence}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-300">
+                      {item.summary}
+                    </p>
+                    {item.rawText && (
+                      <p className="mt-1 font-mono text-2xs text-zinc-600">
+                        &quot;{item.rawText.slice(0, 80)}&quot;
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+              {(!imgData || imgData.items.length === 0) && (
+                <p className="py-4 text-center text-2xs text-zinc-600">
+                  No evidence extracted yet
+                </p>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  // Transcript documents: show text + commitments sidebar.
+  const commitments = memoryEvents.filter(
+    (evt) =>
+      evt.agent === "scribe" && evt.filePath.startsWith("commitments/")
+  );
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="doc-modal-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        key="doc-modal-content"
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.97 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="fixed inset-4 z-[91] flex overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Left: transcript text */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-medium text-zinc-200">
+                {doc.filename}
+              </h2>
+              <p className="font-mono text-2xs text-zinc-500">
+                Meeting transcript &middot;{" "}
+                {doc.evidenceCount > 0
+                  ? `${doc.evidenceCount} commitments extracted`
+                  : "Processing..."}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <TranscriptViewer filename={doc.filename} />
+        </div>
+
+        {/* Right: commitments sidebar */}
+        <div className="w-[340px] shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-900">
+          <div className="border-b border-zinc-800 px-4 py-3">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400">
+              Extracted Commitments
+            </h3>
+          </div>
+          <div className="space-y-2 p-3">
+            {commitments.map((evt) => (
+              <div
+                key={evt.id}
+                className="rounded-md border border-zinc-800 p-3"
+              >
+                <p className="text-xs text-zinc-300">{evt.summary}</p>
+                <p className="mt-1 font-mono text-2xs text-zinc-600">
+                  {evt.filePath}
+                </p>
+              </div>
+            ))}
+            {commitments.length === 0 && (
+              <p className="py-4 text-center text-2xs text-zinc-600">
+                No commitments extracted yet
+              </p>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+/**
+ * Fetches and displays a meeting transcript from the backend static files.
+ * Loads on mount — shows loading state while fetching.
+ */
+function TranscriptViewer({ filename }: { filename: string }) {
+  const [text, setText] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = `${BACKEND_URL}/static/synthetic/meetings/${filename}`;
+    fetch(url)
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error("Not found"))))
+      .then(setText)
+      .catch(() => setText("Failed to load transcript."));
+  }, [filename]);
+
+  if (text === null) {
+    return (
+      <p className="py-8 text-center text-2xs text-zinc-600">
+        Loading transcript...
+      </p>
+    );
+  }
+
+  return (
+    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-zinc-400">
+      {text}
+    </pre>
   );
 }
 
