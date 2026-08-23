@@ -89,11 +89,11 @@ export function CommandPalette({
       id: "run-pipeline",
       group: "actions",
       label: "Run pipeline",
-      description: "Open the Engine dashboard",
+      description: "Jump to the Engine section",
       icon: <ActionIcon d="M4 4v16h16M4 14l4-4 4 4 8-8" />,
       onSelect: () => {
         onClose();
-        window.location.href = "/demo";
+        onNavigate("engine");
       },
     },
     ...["overview", "briefings", "drift", "logframe", "documents", "engine"].map(
@@ -104,11 +104,7 @@ export function CommandPalette({
         icon: <ActionIcon d="M5 12h14M12 5l7 7-7 7" />,
         onSelect: () => {
           onClose();
-          if (id === "engine") {
-            window.location.href = "/demo";
-          } else {
-            onNavigate(id);
-          }
+          onNavigate(id);
         },
       })
     ),

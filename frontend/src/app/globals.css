@@ -57,6 +57,34 @@
   }
 }
 
+/*
+ * Warm-light CSS variable overrides for the Engine section
+ * when embedded inside /app. Reassigns shadcn CSS variables
+ * so that bg-background, bg-card, text-foreground etc. render
+ * in the warm palette instead of dark zinc.
+ */
+.warm-engine {
+  --background: 60 9% 97.6%;       /* #FAFAF7 */
+  --foreground: 120 7% 10.6%;      /* #1A1D1A */
+  --card: 0 0% 100%;               /* #FFFFFF */
+  --card-foreground: 120 7% 10.6%; /* #1A1D1A */
+  --popover: 0 0% 100%;
+  --popover-foreground: 120 7% 10.6%;
+  --primary: 142 69% 29.4%;        /* #15803D */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 60 5% 91.4%;        /* #E7E5DF */
+  --secondary-foreground: 120 7% 10.6%;
+  --muted: 60 9% 97.6%;            /* #FAFAF7 */
+  --muted-foreground: 100 2% 44.5%;/* #5C5F5A */
+  --accent: 48 8% 94.1%;           /* #F4F2EC */
+  --accent-foreground: 120 7% 10.6%;
+  --destructive: 0 72% 35.1%;      /* #991B1B */
+  --destructive-foreground: 0 0% 100%;
+  --border: 43 10% 88.6%;          /* #E7E5DF */
+  --input: 43 10% 88.6%;
+  --ring: 142 69% 29.4%;
+}
+
 /* Scan line effect for documents being processed by Scout.
    A 1px emerald line travels top-to-bottom on the thumbnail. */
 @keyframes scan-line {
