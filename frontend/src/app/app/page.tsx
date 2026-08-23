@@ -12,6 +12,11 @@ import { InfoPopover } from "@/components/info-popover";
  * Only fetched when the user expands the Engine section — keeps
  * initial bundle small and avoids loading SSE infrastructure upfront.
  */
+/**
+ * Lazy-load the Engine dashboard (the /demo page content).
+ * Only fetched when the user expands the Engine section — keeps
+ * initial bundle small and avoids loading SSE infrastructure upfront.
+ */
 const EngineDashboard = dynamic(() => import("../demo/page"), {
   ssr: false,
   loading: () => (
@@ -114,57 +119,45 @@ const HERO_STATS = {
   meetings: 2,
 } as const;
 
-const DEMO_DRIFT = [
+/**
+ * Actual logframe outputs from backend/data/projects/mp-fpc-2024/logframe.md.
+ * These are the real MP-FPC indicators — not placeholders.
+ */
+const LOGFRAME_INDICATORS = [
   {
-    topic: "AgriMarts target",
-    meetings: ["Kickoff (Oct)", "Review 1 (Dec)", "Q1 Review (Mar)"],
-    values: ["50 planned", "50 confirmed", "42 mentioned"],
-    severity: "high" as const,
-    delta: "50 \u2192 42",
-    note: "Silent walk-back: target reduced without formal revision",
+    output: "Output 1: Farmer Producer Companies Established",
+    indicators: [
+      { id: "1.1", name: "FPCs registered", target: "15 FPCs" },
+      { id: "1.2", name: "Farmers enrolled", target: "10,000 farmers" },
+      { id: "1.3", name: "Women farmer participation", target: "30%" },
+    ],
   },
   {
-    topic: "Women PHM training",
-    meetings: ["Kickoff (Oct)", "Review 1 (Dec)", "Q1 Review (Mar)"],
-    values: ["500 women", "500 women", "478 logged"],
-    severity: "low" as const,
-    delta: "On track",
-    note: "4% gap — likely data lag, not drift",
+    output: "Output 2: Infrastructure Development",
+    indicators: [
+      { id: "2.1", name: "Cold storage facilities", target: "5 facilities" },
+      { id: "2.2", name: "Sale points operational", target: "20 sale points" },
+    ],
   },
   {
-    topic: "Cold storage facilities",
-    meetings: ["Kickoff (Oct)", "Review 1 (Dec)", "Q1 Review (Mar)"],
-    values: ["4 planned", "3 funded", "1 verified"],
-    severity: "medium" as const,
-    delta: "4 \u2192 1 verified",
-    note: "Rehli operational; 3 others lack evidence",
+    output: "Output 3: Capacity Building",
+    indicators: [
+      { id: "3.1", name: "PHM trainings conducted", target: "50 trainings" },
+      { id: "3.2", name: "Women\u2019s PHM trainings", target: "20 trainings" },
+      { id: "3.3", name: "Stakeholders trained", target: "1,000 people" },
+    ],
   },
 ] as const;
 
-const DEMO_LOGFRAME = [
-  {
-    output: "Output 1: Market Access Infrastructure",
-    indicators: [
-      { name: "AgriMarts established", target: 50, current: 42, verified: 38 },
-      { name: "Salepoints operational", target: 200, current: 164, verified: 112 },
-      { name: "FPCs with market linkages", target: 15, current: 12, verified: 12 },
-    ],
-  },
-  {
-    output: "Output 2: Capacity Building",
-    indicators: [
-      { name: "Women trained in PHM", target: 500, current: 478, verified: 410 },
-      { name: "Lead farmers identified", target: 100, current: 87, verified: 72 },
-    ],
-  },
-  {
-    output: "Output 3: Infrastructure",
-    indicators: [
-      { name: "Cold storage facilities", target: 4, current: 1, verified: 1 },
-      { name: "Processing units set up", target: 8, current: 5, verified: 3 },
-    ],
-  },
-] as const;
+/** A drift item built from real contradiction detection output. */
+interface DriftItem {
+  topic: string;
+  meetings: string[];
+  values: string[];
+  severity: "high" | "medium" | "low";
+  delta: string;
+  note: string;
+}
 
 const DEMO_DOCUMENTS = [
   { name: "Q1 Review MoM", type: "Meeting", date: "Mar 2026", pages: 4 },
@@ -195,6 +188,66 @@ export default function HomePage() {
   const [meetingContext, setMeetingContext] = useState("");
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  /* Data piped from the Engine dashboard after pipeline runs.
+     These replace the former DEMO_DRIFT / DEMO_LOGFRAME constants.
+     Data arrives via custom window events dispatched by the Engine. */
+  const [driftItems, setDriftItems] = useState<DriftItem[]>([]);
+  const [evidenceCounts, setEvidenceCounts] = useState<Record<string, number>>(
+    {}
+  );
+  const [verificationCounts, setVerificationCounts] = useState<
+    Record<
+      string,
+      { verified: number; unsupported: number; contested: number }
+    >
+  >({});
+
+  /* Listen for pipeline events dispatched by the Engine dashboard. */
+  useEffect(() => {
+    function onContradictions(e: Event) {
+      const items = (e as CustomEvent).detail as Array<
+        Record<string, unknown>
+      >;
+      const mapped: DriftItem[] = items.map((c) => {
+        const earlierClaim = (c.earlier_claim as string) || "";
+        const laterClaim = (c.later_claim as string) || "";
+        return {
+          topic: (c.description as string) || "Unknown",
+          meetings: [
+            (c.earlier_source as string) || "Meeting 1",
+            (c.later_source as string) || "Meeting 2",
+          ],
+          values: [earlierClaim, laterClaim],
+          severity:
+            (c.severity as "high" | "medium" | "low") || "medium",
+          delta: `${earlierClaim} \u2192 ${laterClaim}`,
+          note: (c.description as string) || "",
+        };
+      });
+      setDriftItems(mapped);
+    }
+
+    function onEvidence(e: Event) {
+      setEvidenceCounts((e as CustomEvent).detail);
+    }
+
+    function onVerification(e: Event) {
+      setVerificationCounts((e as CustomEvent).detail);
+    }
+
+    window.addEventListener("poneglyph:contradictions", onContradictions);
+    window.addEventListener("poneglyph:evidence", onEvidence);
+    window.addEventListener("poneglyph:verification", onVerification);
+    return () => {
+      window.removeEventListener(
+        "poneglyph:contradictions",
+        onContradictions
+      );
+      window.removeEventListener("poneglyph:evidence", onEvidence);
+      window.removeEventListener("poneglyph:verification", onVerification);
+    };
+  }, []);
 
   /* Rotate loading messages. */
   useEffect(() => {
@@ -297,7 +350,7 @@ export default function HomePage() {
       />
 
       {/* ── Main content ── */}
-      <main className="mx-auto max-w-[1080px] px-6 pb-20 pt-8">
+      <main className="mx-auto max-w-[1296px] px-6 pb-20 pt-8">
         {/* Section 1: Page header */}
         <section id="overview" className="mb-10">
           <PageHeader />
@@ -318,12 +371,15 @@ export default function HomePage() {
 
         {/* Section 4: Drift */}
         <section id="drift" className="mb-10">
-          <DriftSection />
+          <DriftSection driftItems={driftItems} />
         </section>
 
         {/* Section 5: Logframe coverage */}
         <section id="logframe" className="mb-10">
-          <LogframeSection />
+          <LogframeSection
+            evidenceCounts={evidenceCounts}
+            verificationCounts={verificationCounts}
+          />
         </section>
 
         {/* Section 6: Documents grid */}
@@ -492,19 +548,30 @@ function BriefingCard({
       <SectionHeader title="Briefings" tooltip={TOOLTIPS.briefings} />
 
       {briefingState.kind === "display" ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-2xs text-text-secondary">
-              Latest: {briefingState.briefing.stakeholder}
-              {briefingState.briefing.meeting_context &&
-                ` \u2014 ${briefingState.briefing.meeting_context}`}
-            </p>
-            <button
-              onClick={onOpenModal}
-              className="text-2xs font-medium text-accent-forest hover:text-accent-forest-hover"
-            >
-              Generate new
-            </button>
+        <div className="rounded-xl border border-accent-forest/20 bg-surface p-6">
+          {/* Header */}
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-text-primary">
+                {briefingState.briefing.stakeholder} Briefing
+              </h4>
+              {briefingState.briefing.meeting_context && (
+                <p className="mt-0.5 text-2xs text-text-secondary">
+                  {briefingState.briefing.meeting_context}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-2xs text-text-tertiary">
+                View past briefings
+              </span>
+              <button
+                onClick={onOpenModal}
+                className="text-2xs font-medium text-accent-forest transition-colors hover:text-accent-forest-hover"
+              >
+                Generate new
+              </button>
+            </div>
           </div>
 
           {/* Project summary */}
@@ -516,24 +583,26 @@ function BriefingCard({
           </p>
 
           {/* Stacked sections */}
-          <BriefingSectionInline
-            title="Push for"
-            accentColor="forest"
-            items={briefingState.briefing.push_for}
-          />
-          <BriefingSectionInline
-            title="They'll push back on"
-            accentColor="amber"
-            items={briefingState.briefing.push_back_on_us}
-          />
-          <BriefingSectionInline
-            title="Don't bring up"
-            accentColor="muted"
-            items={briefingState.briefing.do_not_bring_up}
-          />
+          <div className="mt-5 space-y-4">
+            <BriefingSectionInline
+              title="Push for"
+              accentColor="forest"
+              items={briefingState.briefing.push_for}
+            />
+            <BriefingSectionInline
+              title="They&apos;ll push back on"
+              accentColor="amber"
+              items={briefingState.briefing.push_back_on_us}
+            />
+            <BriefingSectionInline
+              title="Don&apos;t bring up"
+              accentColor="muted"
+              items={briefingState.briefing.do_not_bring_up}
+            />
+          </div>
 
           {/* Closing note */}
-          <div className="border-t border-hairline pt-4">
+          <div className="mt-5 border-t border-hairline pt-4">
             <p
               className="text-2xs italic text-text-tertiary"
               style={{ lineHeight: 1.6 }}
@@ -543,19 +612,40 @@ function BriefingCard({
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
-          <p className="text-sm text-text-secondary">
-            No briefing generated yet
-          </p>
-          <p className="mt-1 text-2xs text-text-tertiary">
-            Generate a stakeholder briefing to see push-for, push-back, and
-            what to avoid
+        <div className="rounded-xl border-2 border-dashed border-accent-forest/30 bg-highlight-mint/30 p-8 text-center">
+          {/* Briefing icon */}
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-accent-forest/10">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-accent-forest"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+          </div>
+          <h4 className="text-sm font-semibold text-text-primary">
+            Prepare for your next meeting
+          </h4>
+          <p className="mx-auto mt-1 max-w-md text-2xs text-text-secondary">
+            Generate a stakeholder briefing grounded in project evidence
+            &mdash; what to push for, what they&apos;ll push back on, and what
+            not to bring up.
           </p>
           <button
             onClick={onOpenModal}
             className="mt-4 rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
           >
-            Brief me...
+            Generate briefing
           </button>
         </div>
       )}
@@ -645,131 +735,114 @@ function highlightNumbers(text: string): React.ReactNode {
 // Section 4: Drift
 // ─────────────────────────────────────────────────────────────
 
-function DriftSection() {
+function DriftSection({ driftItems }: { driftItems: DriftItem[] }) {
   return (
     <div>
       <SectionHeader title="Drift" tooltip={TOOLTIPS.drift} />
-      <div className="space-y-4">
-        {DEMO_DRIFT.map((row) => (
-          <DriftRow key={row.topic} row={row} />
-        ))}
-      </div>
+
+      {driftItems.length === 0 ? (
+        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
+          <p className="text-sm text-text-secondary">
+            No drift detected yet
+          </p>
+          <p className="mt-1 text-2xs text-text-tertiary">
+            Run the pipeline to detect silent walk-backs across meetings
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {driftItems.map((row) => (
+            <DriftCard key={row.topic} row={row} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function DriftRow({
-  row,
-}: {
-  row: (typeof DEMO_DRIFT)[number];
-}) {
-  const severityColors = {
-    high: {
-      bg: "bg-red-50",
-      border: "border-accent-critical/20",
-      badge: "bg-red-100 text-accent-critical",
-    },
-    medium: {
-      bg: "bg-amber-50",
-      border: "border-accent-amber/20",
-      badge: "bg-amber-100 text-accent-amber",
-    },
-    low: {
-      bg: "bg-canvas",
-      border: "border-hairline",
-      badge: "bg-highlight-mint text-accent-forest",
-    },
+function DriftCard({ row }: { row: DriftItem }) {
+  const severityBadge = {
+    high: "bg-red-100 text-red-700",
+    medium: "bg-amber-100 text-amber-700",
+    low: "bg-emerald-100 text-emerald-700",
+  }[row.severity];
+
+  const lineColor = {
+    high: "#DC2626",
+    medium: "#D97706",
+    low: "#15803D",
   }[row.severity];
 
   return (
     <div
-      className={`rounded-xl border ${severityColors.border} ${severityColors.bg} p-5`}
+      className="rounded-xl bg-surface p-4"
+      style={{ border: "0.5px solid #E7E5DF" }}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h4 className="text-sm font-medium text-text-primary">
-              {row.topic}
-            </h4>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${severityColors.badge}`}
-            >
-              {row.severity}
-            </span>
-          </div>
-          <p className="mt-1 text-2xs text-text-secondary">{row.note}</p>
+      {/* Top row: label + severity badge + delta */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-text-primary">
+            {row.topic}
+          </span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${severityBadge}`}
+          >
+            {row.severity}
+          </span>
         </div>
-        <span className="shrink-0 font-mono text-xs font-semibold text-text-primary">
+        <span className="font-mono text-xs font-semibold text-text-primary">
           {row.delta}
         </span>
       </div>
 
-      {/* SVG timeline */}
-      <div className="mt-4">
-        <svg
-          width="100%"
-          height="40"
-          viewBox="0 0 600 40"
-          preserveAspectRatio="xMidYMid meet"
-          className="overflow-visible"
-        >
-          {/* Connector line */}
-          <line
-            x1="40"
-            y1="20"
-            x2="560"
-            y2="20"
-            stroke={
-              row.severity === "high"
-                ? "#991B1B"
-                : row.severity === "medium"
-                ? "#B45309"
-                : "#15803D"
-            }
-            strokeWidth="2"
-            strokeDasharray={row.severity === "low" ? "none" : "6 4"}
-          />
+      {/* Description */}
+      <p className="mt-1.5 text-[13px] leading-snug" style={{ color: "#5C5F5A" }}>
+        {row.note}
+      </p>
 
-          {/* Nodes */}
-          {row.meetings.map((meeting, i) => {
-            const x = 40 + (i * 520) / (row.meetings.length - 1);
-            return (
-              <g key={i}>
-                <circle
-                  cx={x}
-                  cy="20"
-                  r="5"
-                  fill="white"
-                  stroke={
-                    row.severity === "high"
-                      ? "#991B1B"
-                      : row.severity === "medium"
-                      ? "#B45309"
-                      : "#15803D"
-                  }
-                  strokeWidth="2"
-                />
-                <text
-                  x={x}
-                  y="6"
-                  textAnchor="middle"
-                  className="fill-text-tertiary text-[9px]"
-                >
-                  {meeting}
-                </text>
-                <text
-                  x={x}
-                  y="36"
-                  textAnchor="middle"
-                  className="fill-text-primary text-[10px] font-medium"
-                >
-                  {row.values[i]}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      {/* SVG timeline — 2 nodes, line bends at second node */}
+      {row.meetings.length >= 2 && (
+        <div className="mt-3">
+          <svg
+            width="100%"
+            height="56"
+            viewBox="0 0 400 56"
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {/* Connector: straight from node 1, bend down to node 2 */}
+            <path
+              d="M 60 28 L 200 28 L 340 34"
+              fill="none"
+              stroke={lineColor}
+              strokeWidth="1.5"
+              strokeDasharray="6 3"
+            />
+
+            {/* Node 1 */}
+            <circle cx="60" cy="28" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
+            <text x="60" y="12" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
+              {row.meetings[0]}
+            </text>
+            <text x="60" y="48" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
+              {row.values[0]}
+            </text>
+
+            {/* Node 2 (shifted down slightly to show drift) */}
+            <circle cx="340" cy="34" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
+            <text x="340" y="12" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
+              {row.meetings[1]}
+            </text>
+            <text x="340" y="52" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
+              {row.values[1]}
+            </text>
+
+            {/* Midpoint change label */}
+            <text x="200" y="22" textAnchor="middle" fontSize="9" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
+              {row.values[0]} → {row.values[1]}
+            </text>
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -778,57 +851,116 @@ function DriftRow({
 // Section 5: Logframe coverage
 // ─────────────────────────────────────────────────────────────
 
-function LogframeSection() {
+function LogframeSection({
+  evidenceCounts,
+  verificationCounts,
+}: {
+  evidenceCounts: Record<string, number>;
+  verificationCounts: Record<
+    string,
+    { verified: number; unsupported: number; contested: number }
+  >;
+}) {
+  const hasEvidence = Object.keys(evidenceCounts).length > 0;
+
   return (
     <div>
       <SectionHeader title="Logframe Coverage" tooltip={TOOLTIPS.logframe} />
-      <div className="space-y-6">
-        {DEMO_LOGFRAME.map((group) => (
-          <div key={group.output}>
-            <h4 className="mb-3 text-2xs font-semibold text-text-secondary">
-              {group.output}
-            </h4>
-            <div className="space-y-2">
-              {group.indicators.map((ind) => {
-                const progress = Math.round((ind.current / ind.target) * 100);
-                const verifiedProgress = Math.round(
-                  (ind.verified / ind.target) * 100
-                );
-                return (
-                  <div
-                    key={ind.name}
-                    className="rounded-lg border border-hairline bg-surface p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xs font-medium text-text-primary">
-                        {ind.name}
-                      </span>
-                      <span className="font-mono text-2xs text-text-tertiary">
-                        {ind.current}/{ind.target}
-                      </span>
+
+      {!hasEvidence ? (
+        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
+          <p className="text-sm text-text-secondary">
+            No evidence mapped yet
+          </p>
+          <p className="mt-1 text-2xs text-text-tertiary">
+            Run the pipeline to map field evidence to logframe indicators
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {LOGFRAME_INDICATORS.map((group) => (
+            <div key={group.output}>
+              <h4 className="mb-3 text-2xs font-semibold text-text-secondary">
+                {group.output}
+              </h4>
+              <div className="space-y-2">
+                {group.indicators.map((ind) => {
+                  /* Evidence keys from Scout use "Output X.Y" format
+                     (e.g. "Output 1.2"), matching the logframe_indicator
+                     field in the backend memory model. */
+                  const key = `Output ${ind.id}`;
+                  const count = evidenceCounts[key] || 0;
+                  const vc = verificationCounts[key];
+                  const verified = vc?.verified || 0;
+                  const contested = vc?.contested || 0;
+                  const unsupported = vc?.unsupported || 0;
+                  /* Scale bar to whichever is larger: evidence count or 5 (minimum visible range). */
+                  const barMax = Math.max(count, 5);
+                  const totalProgress = Math.round(
+                    (count / barMax) * 100
+                  );
+                  const verifiedProgress = Math.round(
+                    (verified / barMax) * 100
+                  );
+
+                  return (
+                    <div
+                      key={ind.id}
+                      className="rounded-lg border border-hairline bg-surface p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-2xs text-text-tertiary">
+                            {ind.id}
+                          </span>
+                          <span className="text-2xs font-medium text-text-primary">
+                            {ind.name}
+                          </span>
+                        </div>
+                        <span className="font-mono text-2xs text-text-tertiary">
+                          Target: {ind.target}
+                        </span>
+                      </div>
+
+                      {/* Evidence count + verification breakdown */}
+                      <div className="mt-1.5 flex items-center gap-3">
+                        <span className="font-mono text-2xs font-medium text-accent-forest">
+                          {count} evidence item{count !== 1 ? "s" : ""}
+                        </span>
+                        {count > 0 && (
+                          <span className="text-[10px] text-text-tertiary">
+                            {verified > 0 && `${verified} \u2713`}
+                            {contested > 0 && ` ${contested} \u26A0`}
+                            {unsupported > 0 && ` ${unsupported} \u2717`}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Progress bar: total (light) + verified (solid) */}
+                      {count > 0 && (
+                        <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-canvas">
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full bg-accent-forest/20"
+                            style={{
+                              width: `${Math.min(totalProgress, 100)}%`,
+                            }}
+                          />
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full bg-accent-forest"
+                            style={{
+                              width: `${Math.min(verifiedProgress, 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
-                    {/* Stacked progress bars: reported (light) + verified (solid) */}
-                    <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-canvas">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full bg-accent-forest/20"
-                        style={{ width: `${Math.min(progress, 100)}%` }}
-                      />
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full bg-accent-forest"
-                        style={{ width: `${Math.min(verifiedProgress, 100)}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 flex gap-4 text-[10px] text-text-tertiary">
-                      <span>{ind.verified} verified</span>
-                      <span>{ind.current - ind.verified} unverified</span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
