@@ -12,8 +12,9 @@ import logging
 import os
 import queue
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import anthropic
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -1142,3 +1143,262 @@ def demo_stream() -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# Poneglyph V2: Milestone & Invoice Defense Shield Endpoints
+# ─────────────────────────────────────────────────────────────
+
+import db
+
+class WhatsAppIngestRequest(BaseModel):
+    sender_name: str = Field(default="Mahesh Sharma")
+    sender_role: str = Field(default="Block Coordinator, Raisen")
+    district: str = Field(default="Raisen")
+    village: str = Field(default="Gairatganj")
+    sample_image: str = Field(default="/static/synthetic/form_english.png")
+    message_text: str = Field(default="रायसेन के 8 एग्रीमार्ट केंद्रों के उद्घाटन रजिस्टर और साइनबोर्ड की फोटो संलग्न है।")
+    milestone_id: str = Field(default="ms-003")
+    gap_id: Optional[str] = Field(default="gap-001")
+
+WhatsAppIngestRequest.model_rebuild()
+
+
+@app.get("/api/v2/project")
+def get_v2_project() -> dict[str, Any]:
+    """Get active project, milestones, financial risk, and readiness metrics."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    
+    cur.execute("SELECT * FROM projects WHERE id = 'proj-mp-fpc'")
+    project_row = cur.fetchone()
+    if not project_row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    project = dict(project_row)
+    
+    cur.execute("SELECT * FROM milestones WHERE project_id = 'proj-mp-fpc'")
+    milestones = [dict(r) for r in cur.fetchall()]
+    
+    cur.execute("SELECT COUNT(*) FROM gap_alerts WHERE project_id = 'proj-mp-fpc' AND status != 'RESOLVED'")
+    open_gaps_count = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM evidence_items WHERE project_id = 'proj-mp-fpc'")
+    total_evidence_count = cur.fetchone()[0]
+
+    conn.close()
+    
+    primary_ms = milestones[0] if milestones else {}
+    target = primary_ms.get("target_quantity", 50)
+    verified = primary_ms.get("verified_quantity", 28)
+    partial = primary_ms.get("partial_quantity", 14)
+    missing = primary_ms.get("missing_quantity", 8)
+    
+    readiness_pct = round((verified / target) * 100, 1) if target > 0 else 0
+    at_risk_inr = round((missing / target) * primary_ms.get("invoice_amount_inr", 4500000.0), 2)
+
+    return {
+        "project": project,
+        "milestones": milestones,
+        "primary_milestone": primary_ms,
+        "metrics": {
+            "target_quantity": target,
+            "verified_quantity": verified,
+            "partial_quantity": partial,
+            "missing_quantity": missing,
+            "readiness_percentage": readiness_pct,
+            "invoice_amount_inr": primary_ms.get("invoice_amount_inr", 4500000.0),
+            "at_risk_amount_inr": at_risk_inr,
+            "open_gaps_count": open_gaps_count,
+            "total_evidence_count": total_evidence_count,
+        }
+    }
+
+
+@app.get("/api/v2/evidence")
+def get_v2_evidence() -> list[dict[str, Any]]:
+    """Get all field evidence items with parsed coordinate bounding boxes."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM evidence_items ORDER BY created_at DESC")
+    rows = cur.fetchall()
+    conn.close()
+    
+    items = []
+    for r in rows:
+        d = dict(r)
+        if d.get("bounding_boxes_json"):
+            try:
+                d["bounding_boxes"] = json.loads(d["bounding_boxes_json"])
+            except Exception:
+                d["bounding_boxes"] = []
+        else:
+            d["bounding_boxes"] = []
+        items.append(d)
+    return items
+
+
+@app.get("/api/v2/gaps")
+def get_v2_gaps() -> list[dict[str, Any]]:
+    """Get all pre-billing gap alerts with automated dispatch prompts."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM gap_alerts ORDER BY severity ASC, created_at DESC")
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/v2/gaps/{gap_id}/dispatch")
+def dispatch_gap_prompt(gap_id: str) -> dict[str, Any]:
+    """Simulate dispatching automated WhatsApp collection prompt to field officer."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM gap_alerts WHERE id = ?", (gap_id,))
+    gap = cur.fetchone()
+    if not gap:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Gap alert not found")
+    
+    cur.execute("UPDATE gap_alerts SET status = 'DISPATCHED' WHERE id = ?", (gap_id,))
+    conn.commit()
+    conn.close()
+    
+    return {
+        "status": "success",
+        "message": f"Automated WhatsApp prompt dispatched to {gap['target_recipient_name']} ({gap['target_recipient_phone']})",
+        "dispatch_details": {
+            "gap_id": gap_id,
+            "recipient": gap["target_recipient_name"],
+            "phone": gap["target_recipient_phone"],
+            "prompt_sent": gap["dispatch_prompt_hindi"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    }
+
+
+@app.post("/api/v2/ingest/whatsapp")
+def ingest_whatsapp_field_proof(req: WhatsAppIngestRequest) -> dict[str, Any]:
+    """Receive field photo/register over WhatsApp, extract bounding boxes, and update milestone readiness."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    
+    now = datetime.now(timezone.utc).isoformat()
+    new_ev_id = f"ev-wa-{int(datetime.now().timestamp()) % 10000}"
+    
+    # Coordinates for the newly received proof (Raisen 8 AgriMarts register)
+    sample_boxes = [
+        {
+            "box_2d": [150, 100, 290, 890],
+            "label": "GOVERNMENT_INSPECTION_RECORD",
+            "text": "KRISHI VIGYAN KENDRA / RAISEN DISTRICT FPC OPERATIONAL AUDIT",
+        },
+        {
+            "box_2d": [340, 120, 500, 880],
+            "label": "VERIFIED_CENTERS_STAMP",
+            "text": "सत्यापित 8 नवीन एग्रीमार्ट केंद्र: पूर्णतः कार्यरत (8 Centers Certified)",
+        },
+        {
+            "box_2d": [540, 130, 710, 890],
+            "label": "SIGNATURES_AND_DATE",
+            "text": f"Gairatganj, Raisen · {datetime.now().strftime('%d %B %Y')} · Certified by Mahesh Sharma",
+        },
+    ]
+
+    cur.execute("""
+    INSERT INTO evidence_items (id, milestone_id, project_id, source_type, sender_name, sender_role, district, village, date_collected, image_url, extracted_text, bounding_boxes_json, confidence, verification_status, auditor_notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        new_ev_id,
+        req.milestone_id,
+        "proj-mp-fpc",
+        "whatsapp",
+        req.sender_name,
+        req.sender_role,
+        req.district,
+        req.village,
+        datetime.now().strftime("%Y-%m-%d"),
+        req.sample_image,
+        f"{req.message_text} Verified 8 operational AgriMarts with certified signboards in Raisen.",
+        json.dumps(sample_boxes),
+        "HIGH",
+        "VERIFIED",
+        "✓ Pixel-verified via WhatsApp: Stamped inspection register from Raisen Agriculture Dept.",
+        now,
+    ))
+
+    # If linked to gap-001, resolve the gap and update milestone counts
+    if req.gap_id:
+        cur.execute("UPDATE gap_alerts SET status = 'RESOLVED' WHERE id = ?", (req.gap_id,))
+        
+        # Increase verified by 8, decrease missing by 8
+        cur.execute("""
+        UPDATE milestones 
+        SET verified_quantity = verified_quantity + 8,
+            missing_quantity = CASE WHEN missing_quantity >= 8 THEN missing_quantity - 8 ELSE 0 END,
+            status = 'READY_FOR_INVOICE'
+        WHERE id = ?
+        """, (req.milestone_id,))
+        
+        # Also update the dossier claims to include Raisen
+        cur.execute("SELECT claims_json FROM dossiers WHERE milestone_id = ?", (req.milestone_id,))
+        dos_row = cur.fetchone()
+        if dos_row:
+            claims = json.loads(dos_row["claims_json"])
+            claims.append({
+                "claim_id": f"cl-0{len(claims)+1}",
+                "text": "8 additional AgriMarts verified operational in Raisen District with certified KVK registers.",
+                "evidence_id": new_ev_id,
+                "verification_status": "VERIFIED",
+                "confidence": "HIGH",
+                "evidence_snippet": "सत्यापित 8 नवीन एग्रीमार्ट केंद्र: पूर्णतः कार्यरत (8 Centers Certified)",
+                "image_url": req.sample_image,
+                "bounding_box": [340, 120, 500, 880]
+            })
+            cur.execute("UPDATE dossiers SET claims_json = ?, status = 'AUDITED_PASSED' WHERE milestone_id = ?", (json.dumps(claims), req.milestone_id))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "evidence_id": new_ev_id,
+        "message": "Field proof ingested over WhatsApp and mapped to Milestone 3. Readiness updated.",
+        "bounding_boxes": sample_boxes,
+    }
+
+
+@app.get("/api/v2/dossier")
+def get_v2_dossier() -> dict[str, Any]:
+    """Get official World Bank / GIZ audit dossier with claim-to-pixel evidence links."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM dossiers WHERE project_id = 'proj-mp-fpc' ORDER BY generated_at DESC LIMIT 1")
+    row = cur.fetchone()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Dossier not found")
+        
+    dossier = dict(row)
+    dossier["claims"] = json.loads(dossier["claims_json"])
+    return dossier
+
+
+@app.post("/api/v2/reset")
+def reset_v2_data() -> dict[str, str]:
+    """Reset V2 database to initial state with open gaps for demo."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS projects")
+    cur.execute("DROP TABLE IF EXISTS milestones")
+    cur.execute("DROP TABLE IF EXISTS evidence_items")
+    cur.execute("DROP TABLE IF EXISTS gap_alerts")
+    cur.execute("DROP TABLE IF EXISTS dossiers")
+    conn.commit()
+    conn.close()
+    
+    db.init_db()
+    return {"status": "success", "message": "Database reset to initial demo state with open gaps."}
+

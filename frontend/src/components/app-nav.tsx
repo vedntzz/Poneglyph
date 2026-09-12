@@ -19,7 +19,7 @@ interface AppNavProps {
   /** Currently active section, driven by IntersectionObserver in the parent. */
   activeSection?: string;
   /** Callback when user clicks Cmd+K affordance. */
-  onCommandPalette: () => void;
+  onCommandPalette?: () => void;
 }
 
 /**
@@ -45,7 +45,7 @@ export function AppNav({ activeSection, onCommandPalette }: AppNavProps) {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        onCommandPalette();
+        onCommandPalette?.();
       }
     }
     window.addEventListener("keydown", handleKeyDown);

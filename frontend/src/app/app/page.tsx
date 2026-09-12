@@ -1,1419 +1,652 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  FileCheck,
+  FileText,
+  MessageSquare,
+  RefreshCw,
+  Send,
+  Shield,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { AppNav } from "@/components/app-nav";
-import { CommandPalette } from "@/components/command-palette";
-import { InfoPopover } from "@/components/info-popover";
-
-/**
- * Lazy-load the Engine dashboard (the /demo page content).
- * Only fetched when the user expands the Engine section — keeps
- * initial bundle small and avoids loading SSE infrastructure upfront.
- */
-/**
- * Lazy-load the Engine dashboard (the /demo page content).
- * Only fetched when the user expands the Engine section — keeps
- * initial bundle small and avoids loading SSE infrastructure upfront.
- */
-const EngineDashboard = dynamic(() => import("../demo/page"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-96 items-center justify-center">
-      <p className="text-2xs text-text-tertiary">Loading engine...</p>
-    </div>
-  ),
-});
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
+interface ProjectData {
+  id: string;
+  name: string;
+  donor_type: string;
+  contract_code: string;
+  contract_value_inr: number;
+  currency: string;
+  description: string;
+}
 
-interface BriefingItemData {
+interface MilestoneData {
+  id: string;
+  title: string;
+  logframe_code: string;
+  target_quantity: number;
+  target_unit: string;
+  verified_quantity: number;
+  partial_quantity: number;
+  missing_quantity: number;
+  invoice_amount_inr: number;
+  status: string;
+  deadline: string;
+}
+
+interface Metrics {
+  target_quantity: number;
+  verified_quantity: number;
+  partial_quantity: number;
+  missing_quantity: number;
+  readiness_percentage: number;
+  invoice_amount_inr: number;
+  at_risk_amount_inr: number;
+  open_gaps_count: number;
+  total_evidence_count: number;
+}
+
+interface GapAlert {
+  id: string;
+  milestone_id: string;
+  issue_type: string;
+  severity: string;
+  title: string;
+  description: string;
+  recommended_action: string;
+  dispatch_prompt_hindi: string;
+  dispatch_prompt_english: string;
+  target_recipient_phone: string;
+  target_recipient_name: string;
+  status: string;
+}
+
+interface DossierClaim {
+  claim_id: string;
   text: string;
-  citations: string[];
-  rationale: string;
+  evidence_id: string;
+  verification_status: string;
+  confidence: string;
+  evidence_snippet: string;
+  image_url: string;
+  bounding_box: [number, number, number, number];
 }
 
-interface BriefingData {
-  project_id: string;
-  stakeholder: string;
-  meeting_context: string | null;
-  project_summary: string;
-  push_for: BriefingItemData[];
-  push_back_on_us: BriefingItemData[];
-  do_not_bring_up: BriefingItemData[];
-  closing_note: string;
+interface DossierData {
+  id: string;
+  donor_format: string;
+  title: string;
+  invoice_ref: string;
+  total_claimed_inr: number;
+  status: string;
+  claims: DossierClaim[];
 }
 
-type BriefingState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "display"; briefing: BriefingData }
-  | { kind: "error"; message: string };
+export default function PoneglyphV2App() {
+  const [project, setProject] = useState<ProjectData | null>(null);
+  const [milestone, setMilestone] = useState<MilestoneData | null>(null);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [gaps, setGaps] = useState<GapAlert[]>([]);
+  const [dossier, setDossier] = useState<DossierData | null>(null);
+  const [selectedClaim, setSelectedClaim] = useState<DossierClaim | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-// ─────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────
-
-const STAKEHOLDER_OPTIONS = [
-  "World Bank",
-  "State Government",
-  "Donor Field Mission",
-] as const;
-
-/** Rotating status messages — specific to what the agent actually does. */
-const LOADING_MESSAGES = [
-  "Reading project memory\u2026",
-  "Checking 19 commitments across 2 meetings\u2026",
-  "Cross-referencing 18 evidence items with logframe targets\u2026",
-  "Looking for commitment drift\u2026",
-  "Drafting briefing for World Bank\u2026",
-  "Verifying citations\u2026",
-] as const;
-
-const LOADING_ROTATION_MS = 3_500;
-
-// HACKATHON COMPROMISE: single project, no project selector.
-// See FAILURE_MODES.md.
-const DEMO_PROJECT_ID = "mp-fpc-2024";
-
-// ── Tooltip content for "?" popovers (spec from session 012) ──
-
-const TOOLTIPS = {
-  heroStat:
-    "Project verification rate. Of the 16 claims drafted in the latest report, 14 were verified by independent re-reading of source documents. The Auditor agent caught 1 contested claim (evidence partially supports) and 1 unsupported claim (no evidence found). Drift flags surface separately.",
-  briefings:
-    'On-demand pre-meeting briefings. The Briefing agent reads project memory, cross-references commitments with evidence, and drafts what to push for, what stakeholders will push back on, and what not to bring up. Every claim cites a specific evidence ID, commitment ID, or meeting ID.',
-  drift:
-    "Silent walk-backs detected by the Archivist agent. When a commitment from one meeting (e.g. '50 AgriMarts by Q3') is contradicted in a later meeting ('42 AgriMarts in pipeline') without acknowledgment, it's flagged. Severity is rated by the impact and how silent the drift is.",
-  logframe:
-    "World Bank logframe coverage. Each indicator's evidence and verification status, mapped from raw documents to logframe outputs by Scout's pixel-coordinate vision and Drafter's structured output.",
-  documents:
-    "Source documents ingested by the pipeline. Forms, transcripts, and CSV exports \u2014 synthetic for this hackathon demo. Each document is processed by Scout (vision) or Scribe (text) and contributes evidence to the project memory.",
-  engine:
-    "The six agents that make Poneglyph work, plus token usage and live status. Click 'Run pipeline' to trigger the canonical demo flow end-to-end on synthetic World Bank project data.",
-} as const;
-
-/** Section IDs for IntersectionObserver scroll tracking. */
-const SECTION_IDS = [
-  "overview",
-  "briefings",
-  "drift",
-  "logframe",
-  "documents",
-  "engine",
-] as const;
-
-// ── Demo data for static sections ─────────────────────────────
-
-const HERO_STATS = {
-  verifiedPercent: 88,
-  evidenceItems: 18,
-  commitments: 19,
-  meetings: 2,
-} as const;
-
-/**
- * Actual logframe outputs from backend/data/projects/mp-fpc-2024/logframe.md.
- * These are the real MP-FPC indicators — not placeholders.
- */
-const LOGFRAME_INDICATORS = [
-  {
-    output: "Output 1: Farmer Producer Companies Established",
-    indicators: [
-      { id: "1.1", name: "FPCs registered", target: "15 FPCs" },
-      { id: "1.2", name: "Farmers enrolled", target: "10,000 farmers" },
-      { id: "1.3", name: "Women farmer participation", target: "30%" },
-    ],
-  },
-  {
-    output: "Output 2: Infrastructure Development",
-    indicators: [
-      { id: "2.1", name: "Cold storage facilities", target: "5 facilities" },
-      { id: "2.2", name: "Sale points operational", target: "20 sale points" },
-    ],
-  },
-  {
-    output: "Output 3: Capacity Building",
-    indicators: [
-      { id: "3.1", name: "PHM trainings conducted", target: "50 trainings" },
-      { id: "3.2", name: "Women\u2019s PHM trainings", target: "20 trainings" },
-      { id: "3.3", name: "Stakeholders trained", target: "1,000 people" },
-    ],
-  },
-] as const;
-
-/** A drift item built from real contradiction detection output. */
-interface DriftItem {
-  topic: string;
-  meetings: string[];
-  values: string[];
-  severity: "high" | "medium" | "low";
-  delta: string;
-  note: string;
-}
-
-const DEMO_DOCUMENTS = [
-  { name: "Q1 Review MoM", type: "Meeting", date: "Mar 2026", pages: 4 },
-  { name: "Rehli Cold Storage Inspection", type: "Field Form", date: "Feb 2026", pages: 2 },
-  { name: "PHM Attendance — Gumla", type: "Field Form", date: "Feb 2026", pages: 3 },
-  { name: "FPC Registration Summary", type: "Report", date: "Jan 2026", pages: 8 },
-  { name: "Kickoff MoM", type: "Meeting", date: "Oct 2025", pages: 6 },
-  { name: "AgriMart Site Photos", type: "Evidence", date: "Mar 2026", pages: 12 },
-] as const;
-
-// ─────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────
-
-export default function HomePage() {
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [briefingModalOpen, setBriefingModalOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState("overview");
-  const [engineExpanded, setEngineExpanded] = useState(false);
-
-  /* Briefing generation state — lives here so it persists across modal open/close. */
-  const [briefingState, setBriefingState] = useState<BriefingState>({
-    kind: "idle",
-  });
-  const [stakeholder, setStakeholder] = useState<string>(
-    STAKEHOLDER_OPTIONS[0]
-  );
-  const [meetingContext, setMeetingContext] = useState("");
-  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
-  const abortRef = useRef<AbortController | null>(null);
-
-  /* Data piped from the Engine dashboard after pipeline runs.
-     These replace the former DEMO_DRIFT / DEMO_LOGFRAME constants.
-     Data arrives via custom window events dispatched by the Engine. */
-  const [driftItems, setDriftItems] = useState<DriftItem[]>([]);
-  const [evidenceCounts, setEvidenceCounts] = useState<Record<string, number>>(
-    {}
-  );
-  const [verificationCounts, setVerificationCounts] = useState<
-    Record<
-      string,
-      { verified: number; unsupported: number; contested: number }
-    >
-  >({});
-
-  /* Listen for pipeline events dispatched by the Engine dashboard. */
-  useEffect(() => {
-    function onContradictions(e: Event) {
-      const items = (e as CustomEvent).detail as Array<
-        Record<string, unknown>
-      >;
-      const mapped: DriftItem[] = items.map((c) => {
-        const earlierClaim = (c.earlier_claim as string) || "";
-        const laterClaim = (c.later_claim as string) || "";
-        return {
-          topic: (c.description as string) || "Unknown",
-          meetings: [
-            (c.earlier_source as string) || "Meeting 1",
-            (c.later_source as string) || "Meeting 2",
-          ],
-          values: [earlierClaim, laterClaim],
-          severity:
-            (c.severity as "high" | "medium" | "low") || "medium",
-          delta: `${earlierClaim} \u2192 ${laterClaim}`,
-          note: (c.description as string) || "",
-        };
-      });
-      setDriftItems(mapped);
-    }
-
-    function onEvidence(e: Event) {
-      setEvidenceCounts((e as CustomEvent).detail);
-    }
-
-    function onVerification(e: Event) {
-      setVerificationCounts((e as CustomEvent).detail);
-    }
-
-    window.addEventListener("poneglyph:contradictions", onContradictions);
-    window.addEventListener("poneglyph:evidence", onEvidence);
-    window.addEventListener("poneglyph:verification", onVerification);
-    return () => {
-      window.removeEventListener(
-        "poneglyph:contradictions",
-        onContradictions
-      );
-      window.removeEventListener("poneglyph:evidence", onEvidence);
-      window.removeEventListener("poneglyph:verification", onVerification);
-    };
-  }, []);
-
-  /* Rotate loading messages. */
-  useEffect(() => {
-    if (briefingState.kind !== "loading") return;
-    setLoadingMessageIndex(0);
-    const interval = setInterval(() => {
-      setLoadingMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
-    }, LOADING_ROTATION_MS);
-    return () => clearInterval(interval);
-  }, [briefingState.kind]);
-
-  /* IntersectionObserver to track which section is in view. */
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
-        }
-      },
-      { rootMargin: "-80px 0px -60% 0px", threshold: 0 }
-    );
-
-    for (const id of SECTION_IDS) {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
-  }, []);
-
-  const handleGenerate = useCallback(async () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setBriefingState({ kind: "loading" });
-
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/briefing/generate`, {
+      setLoading(true);
+      const [projRes, gapsRes, dosRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/v2/project`),
+        fetch(`${BACKEND_URL}/api/v2/gaps`),
+        fetch(`${BACKEND_URL}/api/v2/dossier`),
+      ]);
+
+      if (projRes.ok) {
+        const pData = await projRes.json();
+        setProject(pData.project);
+        setMilestone(pData.primary_milestone);
+        setMetrics(pData.metrics);
+      }
+
+      if (gapsRes.ok) {
+        const gData = await gapsRes.json();
+        setGaps(gData);
+      }
+
+      if (dosRes.ok) {
+        const dData = await dosRes.json();
+        setDossier(dData);
+        if (dData.claims && dData.claims.length > 0) {
+          setSelectedClaim(dData.claims[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load V2 data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const handleDispatchPrompt = async (gapId: string) => {
+    try {
+      setActionLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/v2/gaps/${gapId}/dispatch`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(
+          `⚡ WhatsApp prompt dispatched to ${data.dispatch_details.recipient}`
+        );
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Dispatch error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSimulateWhatsAppIngest = async () => {
+    try {
+      setActionLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/v2/ingest/whatsapp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project_id: DEMO_PROJECT_ID,
-          stakeholder,
-          meeting_context: meetingContext.trim() || null,
+          sender_name: "Mahesh Sharma",
+          sender_role: "Block Coordinator, Raisen",
+          district: "Raisen",
+          village: "Gairatganj",
+          sample_image: "/static/synthetic/form_hindi.png",
+          message_text:
+            "नमस्ते, रायसेन के 8 नवीन एग्रीमार्ट केंद्रों के उद्घाटन रजिस्टर व साइनबोर्ड फोटो संलग्न हैं।",
+          milestone_id: "ms-003",
+          gap_id: "gap-001",
         }),
-        signal: controller.signal,
       });
 
-      if (!res.ok) {
-        const detail = await res.json().catch(() => null);
-        throw new Error(
-          detail?.detail || `Backend returned ${res.status}`
+      if (res.ok) {
+        showToast(
+          "📥 Received Raisen field register via WhatsApp! Pixel bounding box extracted. Milestone updated to 36/50 verified."
         );
+        await fetchData();
       }
-
-      const data: BriefingData = await res.json();
-      setBriefingState({ kind: "display", briefing: data });
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setBriefingState({
-        kind: "error",
-        message:
-          err instanceof Error ? err.message : "Failed to generate briefing",
+      console.error("WhatsApp ingest error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      setActionLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/v2/reset`, {
+        method: "POST",
       });
+      if (res.ok) {
+        showToast("🔄 Reset demo state to 8 open gaps.");
+        await fetchData();
+      }
+    } catch (err) {
+      console.error("Reset error:", err);
+    } finally {
+      setActionLoading(false);
     }
-  }, [stakeholder, meetingContext]);
+  };
 
-  const handleBriefingReset = useCallback(() => {
-    abortRef.current?.abort();
-    setBriefingState({ kind: "idle" });
-    setMeetingContext("");
-  }, []);
-
-  const scrollToSection = useCallback((sectionId: string) => {
-    /* Auto-expand Engine section when navigating to it. */
-    if (sectionId === "engine") {
-      setEngineExpanded(true);
-    }
-    /* Small delay when expanding engine to let React render before scrolling. */
-    const delay = sectionId === "engine" ? 100 : 0;
-    setTimeout(() => {
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" });
-    }, delay);
-  }, []);
+  const formatINR = (val: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <AppNav
-        activeSection={activeSection}
-        onCommandPalette={() => setCommandPaletteOpen(true)}
-      />
+    <div className="min-h-screen bg-[#0A0D0E] text-slate-100 font-sans selection:bg-emerald-500/30">
+      <AppNav />
 
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        onBriefMe={() => setBriefingModalOpen(true)}
-        onNavigate={scrollToSection}
-      />
-
-      {/* ── Main content ── */}
-      <main className="mx-auto max-w-[1296px] px-6 pb-20 pt-8">
-        {/* Section 1: Page header */}
-        <section id="overview" className="mb-10">
-          <PageHeader />
-        </section>
-
-        {/* Section 2: Hero stat block */}
-        <section className="mb-10">
-          <HeroStatBlock onBriefMe={() => setBriefingModalOpen(true)} driftFlags={driftItems.length} />
-        </section>
-
-        {/* Section 3: Briefing card */}
-        <section id="briefings" className="mb-10">
-          <BriefingCard
-            briefingState={briefingState}
-            onOpenModal={() => setBriefingModalOpen(true)}
-          />
-        </section>
-
-        {/* Section 4: Drift */}
-        <section id="drift" className="mb-10">
-          <DriftSection driftItems={driftItems} />
-        </section>
-
-        {/* Section 5: Logframe coverage */}
-        <section id="logframe" className="mb-10">
-          <LogframeSection
-            evidenceCounts={evidenceCounts}
-            verificationCounts={verificationCounts}
-          />
-        </section>
-
-        {/* Section 6: Documents grid */}
-        <section id="documents" className="mb-10">
-          <DocumentsGrid />
-        </section>
-
-        {/* Section 7: Engine (collapsible) */}
-        <section id="engine" className="mb-10">
-          <EngineSection
-            expanded={engineExpanded}
-            onToggle={() => setEngineExpanded((prev) => !prev)}
-          />
-        </section>
-      </main>
-
-      {/* Briefing modal */}
-      <BriefingModal
-        isOpen={briefingModalOpen}
-        onClose={() => setBriefingModalOpen(false)}
-        briefingState={briefingState}
-        stakeholder={stakeholder}
-        onStakeholderChange={setStakeholder}
-        meetingContext={meetingContext}
-        onMeetingContextChange={setMeetingContext}
-        loadingMessageIndex={loadingMessageIndex}
-        onGenerate={handleGenerate}
-        onReset={handleBriefingReset}
-      />
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Section 1: Page header
-// ─────────────────────────────────────────────────────────────
-
-function PageHeader() {
-  return (
-    <div className="flex items-center gap-3">
-      <h1 className="text-lg font-semibold text-text-primary">
-        Madhya Pradesh Farmer Producer Company
-      </h1>
-      <span className="rounded-full bg-highlight-mint px-2.5 py-0.5 text-2xs font-medium text-accent-forest">
-        Active
-      </span>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Section 2: Hero stat block with circular progress arc
-// ─────────────────────────────────────────────────────────────
-
-function HeroStatBlock({ onBriefMe, driftFlags }: { onBriefMe: () => void; driftFlags: number }) {
-  const { verifiedPercent, evidenceItems, commitments, meetings } =
-    HERO_STATS;
-
-  /* SVG arc math for the circular progress indicator.
-     Radius 54, stroke 8, viewBox 128x128. */
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset =
-    circumference - (verifiedPercent / 100) * circumference;
-
-  return (
-    <div className="rounded-xl border border-hairline bg-surface p-8">
-      <div className="flex items-center gap-10">
-        {/* Circular arc */}
-        <div className="relative flex shrink-0 items-center justify-center">
-          <svg width="128" height="128" viewBox="0 0 128 128">
-            {/* Background ring */}
-            <circle
-              cx="64"
-              cy="64"
-              r={radius}
-              fill="none"
-              stroke="#E7E5DF"
-              strokeWidth="8"
-            />
-            {/* Progress arc */}
-            <circle
-              cx="64"
-              cy="64"
-              r={radius}
-              fill="none"
-              stroke="#15803D"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              transform="rotate(-90 64 64)"
-              className="transition-all duration-1000 ease-out"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-mono text-xl font-bold text-text-primary">
-              {verifiedPercent}%
-            </span>
-            <span className="flex items-center text-[10px] text-text-tertiary">
-              verified
-              <InfoPopover content={TOOLTIPS.heroStat} />
-            </span>
+      {loading && !project && (
+        <div className="flex h-64 items-center justify-center">
+          <div className="flex items-center gap-2 text-xs text-emerald-400 font-mono">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Loading Milestone & Invoice Data...
           </div>
         </div>
+      )}
 
-        {/* Stats grid */}
-        <div className="flex-1">
-          <div className="grid grid-cols-2 gap-x-10 gap-y-5">
-            <StatItem label="Evidence items" value={evidenceItems} />
-            <StatItem label="Commitments tracked" value={commitments} />
-            <StatItem label="Drift flags" value={driftFlags} accent="amber" />
-            <StatItem label="Meetings processed" value={meetings} />
-          </div>
+      {/* Toast notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-16 right-6 z-50 max-w-md rounded-xl border border-emerald-500/40 bg-emerald-950/90 p-4 text-xs text-emerald-200 shadow-2xl backdrop-blur-md flex items-center gap-3"
+          >
+            <Sparkles className="h-5 w-5 text-emerald-400 shrink-0" />
+            <p>{toastMessage}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <div className="mt-6">
-            <button
-              onClick={onBriefMe}
-              className="rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
-            >
-              Brief me for the next meeting
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatItem({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: "amber";
-}) {
-  return (
-    <div>
-      <p
-        className={`font-mono text-lg font-semibold ${
-          accent === "amber" ? "text-accent-amber" : "text-text-primary"
-        }`}
-      >
-        {value}
-      </p>
-      <p className="text-2xs text-text-tertiary">{label}</p>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Section 3: Briefing card
-// ─────────────────────────────────────────────────────────────
-
-function BriefingCard({
-  briefingState,
-  onOpenModal,
-}: {
-  briefingState: BriefingState;
-  onOpenModal: () => void;
-}) {
-  return (
-    <div>
-      <SectionHeader title="Briefings" tooltip={TOOLTIPS.briefings} />
-
-      {briefingState.kind === "display" ? (
-        <div className="rounded-xl border border-accent-forest/20 bg-surface p-6">
-          {/* Header */}
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-semibold text-text-primary">
-                {briefingState.briefing.stakeholder} Briefing
-              </h4>
-              {briefingState.briefing.meeting_context && (
-                <p className="mt-0.5 text-2xs text-text-secondary">
-                  {briefingState.briefing.meeting_context}
-                </p>
-              )}
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
+        {/* ── 1. Top Executive Banner ── */}
+        <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-6 sm:p-8 shadow-2xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-2xs font-semibold text-emerald-400">
+                <Shield className="h-3.5 w-3.5" />
+                PONEGLYPH V2 · MILESTONE & INVOICE DEFENSE SHIELD
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                {project?.name ?? "Madhya Pradesh Farmer Producer Company Program"}
+              </h1>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Donor: <span className="text-slate-200 font-medium">{project?.donor_type}</span> · Contract:{" "}
+                <span className="text-slate-200 font-mono">{project?.contract_code}</span> · Value:{" "}
+                <span className="text-emerald-400 font-bold">{formatINR(project?.contract_value_inr ?? 52000000)}</span>
+              </p>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-2xs text-text-tertiary">
-                View past briefings
+
+            {/* Invoice Status Pill & Reset */}
+            <div className="flex flex-col items-start md:items-end gap-3">
+              <div className="flex items-center gap-2">
+                {metrics && metrics.missing_quantity > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">
+                    <AlertTriangle className="h-4 w-4 text-amber-400 animate-pulse" />
+                    ⚠️ {metrics.missing_quantity} Gaps Blocking Billing
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    ✓ 100% Audit-Ready for Submission
+                  </span>
+                )}
+
+                <button
+                  onClick={handleReset}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                  title="Reset demo data"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${actionLoading ? "animate-spin" : ""}`} />
+                  Reset Demo
+                </button>
+              </div>
+
+              <p className="text-2xs text-slate-400">
+                Next Submission Deadline: <span className="text-slate-200 font-mono">{milestone?.deadline}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* ── 2. Milestone 3 Financial & Proof Readiness Meter ── */}
+          <div className="mt-8 pt-6 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Metric 1: Active Invoice */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold">
+                Active Invoice Payment
               </span>
-              <button
-                onClick={onOpenModal}
-                className="text-2xs font-medium text-accent-forest transition-colors hover:text-accent-forest-hover"
+              <p className="mt-1 text-2xl font-bold text-white font-mono">
+                {formatINR(metrics?.invoice_amount_inr ?? 4500000)}
+              </p>
+              <p className="mt-1 text-2xs text-slate-400">Milestone 3 Deliverables</p>
+            </div>
+
+            {/* Metric 2: At Risk Deduction */}
+            <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-4">
+              <span className="text-2xs text-rose-400 uppercase tracking-wider font-semibold">
+                At-Risk Deduction
+              </span>
+              <p className="mt-1 text-2xl font-bold text-rose-400 font-mono">
+                {formatINR(metrics?.at_risk_amount_inr ?? 1200000)}
+              </p>
+              <p className="mt-1 text-2xs text-rose-400/80">
+                {metrics?.missing_quantity ?? 8} centers missing field proof
+              </p>
+            </div>
+
+            {/* Metric 3 & 4: Readiness Meter (Spans 2 cols) */}
+            <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col justify-between">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-300">
+                  Proof Readiness: {metrics?.verified_quantity} of {metrics?.target_quantity} Centers Certified
+                </span>
+                <span className="font-mono font-bold text-emerald-400">
+                  {metrics?.readiness_percentage}%
+                </span>
+              </div>
+
+              {/* Progress Bar with 3 segments */}
+              <div className="my-2 h-3.5 w-full rounded-full bg-slate-800 overflow-hidden flex">
+                <div
+                  style={{
+                    width: `${((metrics?.verified_quantity ?? 28) / (metrics?.target_quantity ?? 50)) * 100}%`,
+                  }}
+                  className="bg-emerald-500 transition-all duration-500"
+                  title="Verified with Stamped Registers"
+                />
+                <div
+                  style={{
+                    width: `${((metrics?.partial_quantity ?? 14) / (metrics?.target_quantity ?? 50)) * 100}%`,
+                  }}
+                  className="bg-amber-500 transition-all duration-500"
+                  title="MoU Signed, Missing Site Photo"
+                />
+                <div
+                  style={{
+                    width: `${((metrics?.missing_quantity ?? 8) / (metrics?.target_quantity ?? 50)) * 100}%`,
+                  }}
+                  className="bg-rose-500 transition-all duration-500"
+                  title="Zero Field Evidence"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-2xs text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Verified: {metrics?.verified_quantity}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Partial (MoU only): {metrics?.partial_quantity}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  Missing Proof: {metrics?.missing_quantity}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 3. Pre-Billing Gap Radar & WhatsApp Field Siphon ── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-amber-400" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                Pre-Billing Gap Radar & WhatsApp Field Siphon
+              </h2>
+            </div>
+            <span className="text-2xs text-slate-400">
+              Auto-detects missing evidence BEFORE the World Bank IEG review
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {gaps.map((gap) => (
+              <motion.div
+                key={gap.id}
+                layout
+                className={`rounded-xl border p-5 transition-all ${
+                  gap.status === "RESOLVED"
+                    ? "border-emerald-500/30 bg-emerald-950/10 opacity-75"
+                    : gap.severity === "CRITICAL"
+                    ? "border-rose-500/40 bg-rose-950/10 shadow-lg"
+                    : "border-amber-500/40 bg-amber-950/10 shadow-lg"
+                }`}
               >
-                Generate new
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded px-2 py-0.5 text-3xs font-bold uppercase ${
+                          gap.severity === "CRITICAL"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        }`}
+                      >
+                        {gap.severity} RISK
+                      </span>
+                      <span className="text-3xs font-mono text-slate-400">
+                        {gap.issue_type}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-bold text-white">{gap.title}</h3>
+                  </div>
+
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-2xs font-semibold ${
+                      gap.status === "RESOLVED"
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : gap.status === "DISPATCHED"
+                        ? "bg-sky-500/20 text-sky-400"
+                        : "bg-amber-500/20 text-amber-400"
+                    }`}
+                  >
+                    {gap.status}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-xs text-slate-300 leading-relaxed">
+                  {gap.description}
+                </p>
+
+                {/* WhatsApp Prompt Preview */}
+                <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/90 p-3 text-2xs">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="flex items-center gap-1 font-semibold text-emerald-400">
+                      <MessageSquare className="h-3 w-3" />
+                      WhatsApp Prompt for: {gap.target_recipient_name}
+                    </span>
+                    <span className="font-mono">{gap.target_recipient_phone}</span>
+                  </div>
+                  <p className="text-slate-300 font-sans italic bg-slate-950/60 p-2 rounded border border-slate-800/80">
+                    &ldquo;{gap.dispatch_prompt_hindi}&rdquo;
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {gap.status !== "RESOLVED" && (
+                    <>
+                      <button
+                        onClick={() => handleDispatchPrompt(gap.id)}
+                        disabled={actionLoading || gap.status === "DISPATCHED"}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/20 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/30 transition disabled:opacity-50"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {gap.status === "DISPATCHED"
+                          ? "✓ Prompt Sent via WhatsApp"
+                          : "⚡ Dispatch WhatsApp Prompt"}
+                      </button>
+
+                      {gap.id === "gap-001" && (
+                        <button
+                          onClick={handleSimulateWhatsAppIngest}
+                          disabled={actionLoading}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 transition"
+                        >
+                          <FileCheck className="h-3.5 w-3.5" />
+                          📥 Simulate Inbound Proof from Raisen (WhatsApp)
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {gap.status === "RESOLVED" && (
+                    <span className="inline-flex items-center gap-1 text-2xs text-emerald-400 font-medium">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Resolved with WhatsApp register ev-wa-001 (Raisen KVK Certified)
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 4. Split-Screen Interactive Audit Dossier Inspector ── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-emerald-400" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                Official World Bank ISR Dossier & Pixel Evidence Inspector
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => showToast("📄 Downloading Audit Dossier PDF with verified proof links...")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700 transition"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export Audit PDF
               </button>
             </div>
           </div>
 
-          {/* Project summary */}
-          <p
-            className="text-sm text-text-secondary"
-            style={{ lineHeight: 1.7 }}
-          >
-            {briefingState.briefing.project_summary}
-          </p>
-
-          {/* Stacked sections */}
-          <div className="mt-5 space-y-4">
-            <BriefingSectionInline
-              title="Push for"
-              accentColor="forest"
-              items={briefingState.briefing.push_for}
-            />
-            <BriefingSectionInline
-              title="They&apos;ll push back on"
-              accentColor="amber"
-              items={briefingState.briefing.push_back_on_us}
-            />
-            <BriefingSectionInline
-              title="Don&apos;t bring up"
-              accentColor="muted"
-              items={briefingState.briefing.do_not_bring_up}
-            />
-          </div>
-
-          {/* Closing note */}
-          <div className="mt-5 border-t border-hairline pt-4">
-            <p
-              className="text-2xs italic text-text-tertiary"
-              style={{ lineHeight: 1.6 }}
-            >
-              {briefingState.briefing.closing_note}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-xl border-2 border-dashed border-accent-forest/30 bg-highlight-mint/30 p-8 text-center">
-          {/* Briefing icon */}
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-accent-forest/10">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-accent-forest"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-          </div>
-          <h4 className="text-sm font-semibold text-text-primary">
-            Prepare for your next meeting
-          </h4>
-          <p className="mx-auto mt-1 max-w-md text-2xs text-text-secondary">
-            Generate a stakeholder briefing grounded in project evidence
-            &mdash; what to push for, what they&apos;ll push back on, and what
-            not to bring up.
-          </p>
-          <button
-            onClick={onOpenModal}
-            className="mt-4 rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
-          >
-            Generate briefing
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BriefingSectionInline({
-  title,
-  accentColor,
-  items,
-}: {
-  title: string;
-  accentColor: "forest" | "amber" | "muted";
-  items: BriefingItemData[];
-}) {
-  const colors = {
-    forest: { dot: "bg-accent-forest", border: "border-accent-forest/20" },
-    amber: { dot: "bg-accent-amber", border: "border-accent-amber/20" },
-    muted: { dot: "bg-text-tertiary", border: "border-hairline" },
-  }[accentColor];
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${colors.dot}`} />
-        <h4 className="text-2xs font-semibold text-text-primary">{title}</h4>
-      </div>
-      <div className="space-y-3">
-        {items.map((item, i) => (
-          <div
-            key={i}
-            className={`rounded-lg border ${colors.border} bg-surface p-4`}
-          >
-            <p
-              className="text-sm text-text-primary"
-              style={{ lineHeight: 1.6 }}
-            >
-              {highlightNumbers(item.text)}
-            </p>
-            <p
-              className="mt-2 text-2xs italic text-text-tertiary"
-              style={{ lineHeight: 1.6 }}
-            >
-              {item.rationale}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {item.citations.map((cid) => (
-                <span
-                  key={cid}
-                  className="rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
-                >
-                  {cid}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
+            {/* Left Column (5 Cols): Claim List */}
+            <div className="lg:col-span-5 space-y-3">
+              <div className="border-b border-slate-800 pb-3">
+                <span className="text-3xs font-mono uppercase tracking-wider text-emerald-400 font-bold">
+                  {dossier?.donor_format} · {dossier?.invoice_ref}
                 </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+                <h3 className="text-sm font-bold text-white mt-1">
+                  {dossier?.title}
+                </h3>
+                <p className="text-2xs text-slate-400">
+                  Click any claim to inspect the stamped, pixel-coordinate paper proof on the right.
+                </p>
+              </div>
 
-/**
- * Highlight numbers in briefing prose with monospace + green accent.
- *
- * Matches patterns like "88%", "42 AgriMarts", "₹1.2 crore", "50 → 42".
- * Returns a mix of plain text and styled <span> elements.
- */
-function highlightNumbers(text: string): React.ReactNode {
-  const parts = text.split(/(\d[\d,.]*%?(?:\s*[→\u2192]\s*\d[\d,.]*%?)?)/g);
-  return parts.map((part, i) =>
-    /\d/.test(part) ? (
-      <span
-        key={i}
-        className="font-mono font-semibold text-accent-forest"
-      >
-        {part}
-      </span>
-    ) : (
-      part
-    )
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Section 4: Drift
-// ─────────────────────────────────────────────────────────────
-
-function DriftSection({ driftItems }: { driftItems: DriftItem[] }) {
-  return (
-    <div>
-      <SectionHeader title="Drift" tooltip={TOOLTIPS.drift} />
-
-      {driftItems.length === 0 ? (
-        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
-          <p className="text-sm text-text-secondary">
-            No drift detected yet
-          </p>
-          <p className="mt-1 text-2xs text-text-tertiary">
-            Run the pipeline to detect silent walk-backs across meetings
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {driftItems.map((row) => (
-            <DriftCard key={row.topic} row={row} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DriftCard({ row }: { row: DriftItem }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const severityBadge = {
-    high: "bg-red-100 text-red-700",
-    medium: "bg-amber-100 text-amber-700",
-    low: "bg-emerald-100 text-emerald-700",
-  }[row.severity];
-
-  const lineColor = {
-    high: "#DC2626",
-    medium: "#D97706",
-    low: "#15803D",
-  }[row.severity];
-
-  const truncate = (s: string, max: number) =>
-    s.length > max ? s.slice(0, max) + "\u2026" : s;
-
-  const hasLongQuotes =
-    row.values[0]?.length > 30 || row.values[1]?.length > 30;
-
-  return (
-    <div
-      className="rounded-xl bg-surface p-4"
-      style={{ border: "0.5px solid #E7E5DF" }}
-    >
-      {/* 1. Header: topic + severity badge + short delta */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-text-primary">
-            {row.topic}
-          </span>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${severityBadge}`}
-          >
-            {row.severity}
-          </span>
-        </div>
-        <span className="shrink-0 font-mono text-xs font-semibold text-text-primary">
-          {truncate(row.delta, 30)}
-        </span>
-      </div>
-
-      {/* 2. Description (max 2 lines) */}
-      <p
-        className="mt-1.5 line-clamp-2 text-[13px]"
-        style={{ color: "#5C5F5A", lineHeight: 1.5 }}
-      >
-        {row.note}
-      </p>
-
-      {/* 3. SVG timeline — 2 nodes, line bends at second node */}
-      {row.meetings.length >= 2 && (
-        <div className="mt-3">
-          <svg
-            width="100%"
-            height="72"
-            viewBox="0 0 400 72"
-            preserveAspectRatio="xMidYMid meet"
-          >
-            {/* Connector: dashed line bending down to node 2 */}
-            <path
-              d="M 60 32 L 200 32 L 340 38"
-              fill="none"
-              stroke={lineColor}
-              strokeWidth="1.5"
-              strokeDasharray="6 3"
-            />
-
-            {/* Node 1 */}
-            <circle cx="60" cy="32" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
-            <text x="60" y="14" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
-              {row.meetings[0]}
-            </text>
-            <text x="60" y="56" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
-              {truncate(row.values[0], 28)}
-            </text>
-
-            {/* Node 2 (shifted down to show drift) */}
-            <circle cx="340" cy="38" r="4" fill="white" stroke={lineColor} strokeWidth="1.5" />
-            <text x="340" y="14" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#8C8C8C">
-              {row.meetings[1]}
-            </text>
-            <text x="340" y="62" textAnchor="middle" fontSize="10" fontFamily="var(--font-geist-mono)" fill="#3D3D3D">
-              {truncate(row.values[1], 28)}
-            </text>
-          </svg>
-        </div>
-      )}
-
-      {/* 4. Citation chips + expand link */}
-      <div className="mt-2 flex items-center justify-between">
-        <div className="flex flex-wrap gap-1.5">
-          {row.meetings.map((m) => (
-            <span
-              key={m}
-              className="rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
-            >
-              {m}
-            </span>
-          ))}
-        </div>
-        {hasLongQuotes && (
-          <button
-            onClick={() => setExpanded((prev) => !prev)}
-            className="text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
-          >
-            {expanded ? "Hide quotes" : "View source quotes"}
-          </button>
-        )}
-      </div>
-
-      {/* Expandable source quotes */}
-      {expanded && (
-        <div className="mt-3 space-y-2 border-t border-hairline pt-3">
-          <div className="rounded-lg bg-canvas p-3">
-            <p className="mb-1 text-[10px] font-medium text-text-tertiary">
-              {row.meetings[0]}
-            </p>
-            <p className="text-2xs text-text-secondary" style={{ lineHeight: 1.5 }}>
-              &ldquo;{row.values[0]}&rdquo;
-            </p>
-          </div>
-          {row.meetings[1] && (
-            <div className="rounded-lg bg-canvas p-3">
-              <p className="mb-1 text-[10px] font-medium text-text-tertiary">
-                {row.meetings[1]}
-              </p>
-              <p className="text-2xs text-text-secondary" style={{ lineHeight: 1.5 }}>
-                &ldquo;{row.values[1]}&rdquo;
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Section 5: Logframe coverage
-// ─────────────────────────────────────────────────────────────
-
-function LogframeSection({
-  evidenceCounts,
-  verificationCounts,
-}: {
-  evidenceCounts: Record<string, number>;
-  verificationCounts: Record<
-    string,
-    { verified: number; unsupported: number; contested: number }
-  >;
-}) {
-  const hasEvidence = Object.keys(evidenceCounts).length > 0;
-
-  return (
-    <div>
-      <SectionHeader title="Logframe Coverage" tooltip={TOOLTIPS.logframe} />
-
-      {!hasEvidence ? (
-        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
-          <p className="text-sm text-text-secondary">
-            No evidence mapped yet
-          </p>
-          <p className="mt-1 text-2xs text-text-tertiary">
-            Run the pipeline to map field evidence to logframe indicators
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {LOGFRAME_INDICATORS.map((group) => (
-            <div key={group.output}>
-              <h4 className="mb-3 text-2xs font-semibold text-text-secondary">
-                {group.output}
-              </h4>
-              <div className="space-y-2">
-                {group.indicators.map((ind) => {
-                  /* Evidence keys from Scout use "Output X.Y" format
-                     (e.g. "Output 1.2"), matching the logframe_indicator
-                     field in the backend memory model. */
-                  const key = `Output ${ind.id}`;
-                  const count = evidenceCounts[key] || 0;
-                  const vc = verificationCounts[key];
-                  const verified = vc?.verified || 0;
-                  const contested = vc?.contested || 0;
-                  const unsupported = vc?.unsupported || 0;
-                  /* Scale bar to whichever is larger: evidence count or 5 (minimum visible range). */
-                  const barMax = Math.max(count, 5);
-                  const totalProgress = Math.round(
-                    (count / barMax) * 100
-                  );
-                  const verifiedProgress = Math.round(
-                    (verified / barMax) * 100
-                  );
-
+              <div className="space-y-2 max-h-[550px] overflow-y-auto pr-1">
+                {dossier?.claims.map((claim) => {
+                  const isSelected = selectedClaim?.claim_id === claim.claim_id;
                   return (
                     <div
-                      key={ind.id}
-                      className="rounded-lg border border-hairline bg-surface p-4"
+                      key={claim.claim_id}
+                      onClick={() => setSelectedClaim(claim)}
+                      className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-950/30 shadow-md ring-1 ring-emerald-500/50"
+                          : "border-slate-800/80 bg-slate-900/50 hover:border-slate-700 hover:bg-slate-900"
+                      }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-2xs text-text-tertiary">
-                            {ind.id}
-                          </span>
-                          <span className="text-2xs font-medium text-text-primary">
-                            {ind.name}
-                          </span>
-                        </div>
-                        <span className="font-mono text-2xs text-text-tertiary">
-                          Target: {ind.target}
+                      <div className="flex items-center justify-between text-2xs mb-2">
+                        <span className="font-mono text-slate-400 font-semibold">
+                          Claim #{claim.claim_id}
+                        </span>
+                        <span
+                          className={`rounded px-2 py-0.5 text-3xs font-bold ${
+                            claim.verification_status === "VERIFIED"
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          }`}
+                        >
+                          {claim.verification_status} ✓
                         </span>
                       </div>
 
-                      {/* Evidence count + verification breakdown */}
-                      <div className="mt-1.5 flex items-center gap-3">
-                        <span className="font-mono text-2xs font-medium text-accent-forest">
-                          {count} evidence item{count !== 1 ? "s" : ""}
-                        </span>
-                        {count > 0 && (
-                          <span className="text-[10px] text-text-tertiary">
-                            {verified > 0 && `${verified} \u2713`}
-                            {contested > 0 && ` ${contested} \u26A0`}
-                            {unsupported > 0 && ` ${unsupported} \u2717`}
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-xs text-white font-medium leading-relaxed">
+                        &ldquo;{claim.text}&rdquo;
+                      </p>
 
-                      {/* Progress bar: total (light) + verified (solid) */}
-                      {count > 0 && (
-                        <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-canvas">
-                          <div
-                            className="absolute inset-y-0 left-0 rounded-full bg-accent-forest/20"
-                            style={{
-                              width: `${Math.min(totalProgress, 100)}%`,
-                            }}
-                          />
-                          <div
-                            className="absolute inset-y-0 left-0 rounded-full bg-accent-forest"
-                            style={{
-                              width: `${Math.min(verifiedProgress, 100)}%`,
-                            }}
-                          />
-                        </div>
-                      )}
+                      <div className="mt-2.5 flex items-center justify-between text-3xs text-slate-400 border-t border-slate-800/60 pt-2">
+                        <span>Source: <strong className="text-slate-300">{claim.evidence_id}</strong></span>
+                        <span className="text-emerald-400 font-mono font-semibold">
+                          Confidence: {claim.confidence}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────
-// Section 6: Documents grid
-// ─────────────────────────────────────────────────────────────
-
-function DocumentsGrid() {
-  return (
-    <div>
-      <SectionHeader title="Documents" tooltip={TOOLTIPS.documents} />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {DEMO_DOCUMENTS.map((doc) => {
-          const typeColors: Record<string, string> = {
-            Meeting: "bg-blue-50 text-blue-700",
-            "Field Form": "bg-highlight-mint text-accent-forest",
-            Report: "bg-amber-50 text-accent-amber",
-            Evidence: "bg-purple-50 text-purple-700",
-          };
-          return (
-            <div
-              key={doc.name}
-              className="rounded-xl border border-hairline bg-surface p-4 transition-colors hover:bg-hover-warm"
-            >
-              {/* Document icon */}
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mb-2 text-text-tertiary"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-              <p className="truncate text-2xs font-medium text-text-primary">
-                {doc.name}
-              </p>
-              <div className="mt-1 flex items-center gap-2">
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                    typeColors[doc.type] ?? "bg-canvas text-text-tertiary"
-                  }`}
-                >
-                  {doc.type}
-                </span>
-                <span className="text-[10px] text-text-tertiary">
-                  {doc.date}
+            {/* Right Column (7 Cols): High-Res Document Proof Viewer */}
+            <div className="lg:col-span-7 rounded-xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col justify-between space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <span className="text-2xs text-slate-400 font-medium">
+                    Evidence Document:
+                  </span>
+                  <p className="text-xs font-bold text-white font-mono">
+                    {selectedClaim?.evidence_id} (Scanned Paper Register / KVK Stamp)
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-3xs font-bold text-emerald-400 font-mono">
+                  <Shield className="h-3 w-3" />
+                  PIXEL-GROUNDED PROOF
                 </span>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────
-// Briefing modal
-// ─────────────────────────────────────────────────────────────
-
-interface BriefingModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  briefingState: BriefingState;
-  stakeholder: string;
-  onStakeholderChange: (value: string) => void;
-  meetingContext: string;
-  onMeetingContextChange: (value: string) => void;
-  loadingMessageIndex: number;
-  onGenerate: () => void;
-  onReset: () => void;
-}
-
-function BriefingModal({
-  isOpen,
-  onClose,
-  briefingState,
-  stakeholder,
-  onStakeholderChange,
-  meetingContext,
-  onMeetingContextChange,
-  loadingMessageIndex,
-  onGenerate,
-  onReset,
-}: BriefingModalProps) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[80] bg-black/20 backdrop-blur-[2px]"
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed left-1/2 top-[10%] z-[81] max-h-[80vh] w-[640px] -translate-x-1/2 overflow-y-auto rounded-xl border border-hairline bg-surface p-6 shadow-lg"
-          >
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-text-primary">
-                Generate Briefing
-              </h2>
-              <button
-                onClick={onClose}
-                className="rounded-md p-1 text-text-tertiary transition-colors hover:bg-hover-warm hover:text-text-primary"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {briefingState.kind === "idle" && (
-                <motion.div
-                  key="modal-idle"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="mb-1.5 block text-2xs text-text-secondary">
-                      Stakeholder
-                    </label>
-                    <select
-                      value={stakeholder}
-                      onChange={(e) => onStakeholderChange(e.target.value)}
-                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-2xs text-text-primary outline-none focus:border-accent-forest"
-                    >
-                      {STAKEHOLDER_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-2xs text-text-secondary">
-                      Meeting context{" "}
-                      <span className="text-text-tertiary">(optional)</span>
-                    </label>
-                    <input
-                      placeholder="e.g. Quarterly progress review — Q1 FY2026"
-                      value={meetingContext}
-                      onChange={(e) => onMeetingContextChange(e.target.value)}
-                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-2xs text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent-forest"
+              {/* Document Scan with SVG Coordinate Highlight Box */}
+              <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center">
+                {selectedClaim && (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedClaim.image_url}
+                      alt="Verified Document Scan"
+                      className="absolute inset-0 h-full w-full object-contain filter contrast-125"
                     />
-                  </div>
 
-                  <button
-                    onClick={onGenerate}
-                    className="w-full rounded-lg bg-accent-forest py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
-                  >
-                    Generate briefing
-                  </button>
-                </motion.div>
-              )}
-
-              {briefingState.kind === "loading" && (
-                <motion.div
-                  key="modal-loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col items-center gap-5 py-10"
-                >
-                  {/* Pulsing dot */}
-                  <div className="relative h-5 w-5">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-accent-forest/30" />
-                    <span className="absolute inset-1 rounded-full bg-accent-forest" />
-                  </div>
-
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={loadingMessageIndex}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.3 }}
-                      className="text-sm text-text-secondary"
+                    {/* Glowing coordinate box */}
+                    <svg
+                      viewBox="0 0 1000 1000"
+                      className="absolute inset-0 h-full w-full pointer-events-none"
                     >
-                      {LOADING_MESSAGES[loadingMessageIndex]}
-                    </motion.p>
-                  </AnimatePresence>
+                      <rect
+                        x={selectedClaim.bounding_box[1]}
+                        y={selectedClaim.bounding_box[0]}
+                        width={
+                          selectedClaim.bounding_box[3] -
+                          selectedClaim.bounding_box[1]
+                        }
+                        height={
+                          selectedClaim.bounding_box[2] -
+                          selectedClaim.bounding_box[0]
+                        }
+                        fill="rgba(16, 185, 129, 0.2)"
+                        stroke="rgba(16, 185, 129, 0.9)"
+                        strokeWidth="8"
+                        strokeDasharray="12 6"
+                        className="animate-pulse"
+                      />
+                    </svg>
+                  </>
+                )}
+              </div>
 
-                  <p className="text-2xs text-text-tertiary">
-                    This takes 30&ndash;60 seconds
-                  </p>
-
-                  <button
-                    onClick={() => {
-                      onReset();
-                    }}
-                    className="text-2xs text-text-tertiary transition-colors hover:text-text-primary"
-                  >
-                    Cancel
-                  </button>
-                </motion.div>
-              )}
-
-              {briefingState.kind === "display" && (
-                <motion.div
-                  key="modal-display"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-4"
-                >
-                  <p className="text-sm text-text-secondary" style={{ lineHeight: 1.7 }}>
-                    {briefingState.briefing.project_summary}
-                  </p>
-
-                  <BriefingSectionInline
-                    title="Push for"
-                    accentColor="forest"
-                    items={briefingState.briefing.push_for}
-                  />
-                  <BriefingSectionInline
-                    title="They'll push back on"
-                    accentColor="amber"
-                    items={briefingState.briefing.push_back_on_us}
-                  />
-                  <BriefingSectionInline
-                    title="Don't bring up"
-                    accentColor="muted"
-                    items={briefingState.briefing.do_not_bring_up}
-                  />
-
-                  <div className="border-t border-hairline pt-4">
-                    <p
-                      className="text-2xs italic text-text-tertiary"
-                      style={{ lineHeight: 1.6 }}
-                    >
-                      {briefingState.briefing.closing_note}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={onReset}
-                      className="rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
-                    >
-                      Generate another
-                    </button>
-                    <button
-                      onClick={onClose}
-                      className="rounded-lg border border-hairline px-5 py-2.5 text-2xs font-medium text-text-secondary transition-colors hover:bg-hover-warm"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {briefingState.kind === "error" && (
-                <motion.div
-                  key="modal-error"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-4 py-4"
-                >
-                  <p className="text-sm font-medium text-accent-critical">
-                    Briefing generation failed
-                  </p>
-                  <p className="text-2xs text-text-secondary">
-                    {briefingState.message}
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={onGenerate}
-                      className="rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
-                    >
-                      Retry
-                    </button>
-                    <button
-                      onClick={onReset}
-                      className="text-2xs text-text-tertiary transition-colors hover:text-text-primary"
-                    >
-                      Back
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Section 7: Engine (collapsible, embeds /demo dashboard)
-// ─────────────────────────────────────────────────────────────
-
-function EngineSection({
-  expanded,
-  onToggle,
-}: {
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <SectionHeader title="Engine" tooltip={TOOLTIPS.engine} />
-        <button
-          onClick={onToggle}
-          className="text-2xs font-medium text-accent-forest transition-colors hover:text-accent-forest-hover"
-        >
-          {expanded ? "Hide engine" : "Show engine \u2192"}
-        </button>
-      </div>
-
-      {!expanded && (
-        <div className="rounded-xl border border-hairline bg-surface p-8 text-center">
-          <p className="text-sm text-text-secondary">
-            See the agents at work
-          </p>
-          <p className="mt-1 text-2xs text-text-tertiary">
-            Run the 6-agent pipeline on synthetic World Bank project data.
-            Watch Scout extract evidence, Scribe process meetings, and Auditor
-            verify claims.
-          </p>
-          <button
-            onClick={onToggle}
-            className="mt-4 rounded-lg bg-accent-forest px-5 py-2.5 text-2xs font-medium text-white transition-colors hover:bg-accent-forest-hover"
-          >
-            Show engine
-          </button>
-        </div>
-      )}
-
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="overflow-hidden"
-          >
-            {/*
-             * warm-engine class overrides CSS variables so shadcn
-             * components render in the warm palette, and strips the
-             * demo page's standalone chrome (header bar, h-screen,
-             * dark background). See globals.css.
-             */}
-            <div className="warm-engine">
-              <EngineDashboard />
+              {/* Extracted Text Snippet */}
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-2xs space-y-1">
+                <span className="text-slate-400 font-semibold uppercase tracking-wider text-3xs">
+                  OCR Text Extracted by Scout Agent (Native Devanagari & English):
+                </span>
+                <p className="text-emerald-300 font-mono text-xs">
+                  &ldquo;{selectedClaim?.evidence_snippet}&rdquo;
+                </p>
+              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </section>
+      </main>
     </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Shared helpers
-// ─────────────────────────────────────────────────────────────
-
-function SectionHeader({
-  title,
-  tooltip,
-}: {
-  title: string;
-  tooltip?: string;
-}) {
-  return (
-    <h3 className="mb-4 flex items-center text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-      {title}
-      {tooltip && <InfoPopover content={tooltip} />}
-    </h3>
   );
 }
